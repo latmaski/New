@@ -1,0 +1,492 @@
+<title>Nattkartan Göteborg</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ground:#0E1116; --surface:#161B23; --surface-2:#1C232D; --surface-3:#232B37;
+  --line:#2A323E; --line-soft:#212833;
+  --ink:#EEF1F5; --ink-2:#A5AFBD; --ink-3:#6C7886;
+  --gold:#E9B44C; --gold-soft:#3A2E14; --gold-ink:#17130A;
+  --match:#6FB3A8; --match-track:#243038;
+  --good:#63B98C; --attn:#DC7259; --money:#9A8CD8; --money-soft:#241F38;
+  --shadow:0 18px 40px -24px rgba(0,0,0,.85);
+  --display:"Familjen Grotesk","Helvetica Neue",Arial,sans-serif;
+  --body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:light){
+  :root:not([data-theme="dark"]){
+    --ground:#F1F3F6; --surface:#FFFFFF; --surface-2:#F5F6F9; --surface-3:#EBEEF3;
+    --line:#DCE1E8; --line-soft:#E7EAF0;
+    --ink:#12171F; --ink-2:#4E5A68; --ink-3:#78838F;
+    --gold:#8A6212; --gold-soft:#F7EBCF; --gold-ink:#FFFFFF;
+    --match:#2E7D71; --match-track:#DDE4E6;
+    --good:#2E7D5B; --attn:#B3452F; --money:#5B4CB0; --money-soft:#EEEBFA;
+    --shadow:0 14px 30px -22px rgba(18,23,31,.35);
+  }
+}
+:root[data-theme="light"]{
+  --ground:#F1F3F6; --surface:#FFFFFF; --surface-2:#F5F6F9; --surface-3:#EBEEF3;
+  --line:#DCE1E8; --line-soft:#E7EAF0;
+  --ink:#12171F; --ink-2:#4E5A68; --ink-3:#78838F;
+  --gold:#8A6212; --gold-soft:#F7EBCF; --gold-ink:#FFFFFF;
+  --match:#2E7D71; --match-track:#DDE4E6;
+  --good:#2E7D5B; --attn:#B3452F; --money:#5B4CB0; --money-soft:#EEEBFA;
+  --shadow:0 14px 30px -22px rgba(18,23,31,.35);
+}
+*{box-sizing:border-box}
+html,body{background:var(--ground)}
+body{margin:0;font-family:var(--body);color:var(--ink);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{font-family:var(--display);margin:0;text-wrap:balance;letter-spacing:-.01em}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px;border-radius:3px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+.eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* ---- app bar ---- */
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--ground);background:color-mix(in srgb,var(--ground) 92%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.bar-in{max-width:1180px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.mark{display:flex;align-items:baseline;gap:8px;margin-right:auto}
+.mark b{font-family:var(--display);font-weight:700;font-size:19px;letter-spacing:-.02em}
+.mark .city{font-family:var(--mono);font-size:11px;color:var(--gold);border:1px solid var(--gold);padding:2px 6px;border-radius:99px;letter-spacing:.06em}
+.tabs{display:flex;gap:2px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:3px}
+.tab{background:none;border:0;padding:6px 13px;border-radius:7px;font-size:13.5px;font-weight:500;color:var(--ink-2)}
+.tab[aria-selected="true"]{background:var(--surface-3);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+.switch{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-2);background:none;border:1px solid var(--line);border-radius:99px;padding:5px 11px 5px 8px}
+.switch .dot{width:9px;height:9px;border-radius:99px;background:var(--ink-3)}
+.switch[aria-pressed="true"]{color:var(--money);border-color:var(--money);background:var(--money-soft)}
+.switch[aria-pressed="true"] .dot{background:var(--money)}
+
+.wrap{max-width:1180px;margin:0 auto;padding-inline:16px;padding-block:22px 40px}
+
+/* ---- disclaimer ---- */
+.disc{display:flex;gap:10px;align-items:flex-start;border:1px dashed var(--line);border-radius:10px;padding:10px 13px;background:var(--surface-2);font-size:12.5px;color:var(--ink-2);margin-bottom:22px}
+.disc b{color:var(--ink);font-weight:600}
+
+/* ---- revenue hook annotation layer ---- */
+.hook{display:none}
+.money-on .hook{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--money);background:var(--money-soft);border:1px solid var(--money);border-radius:5px;padding:2px 6px;vertical-align:middle}
+.money-on .hooked{outline:1px dashed var(--money);outline-offset:4px;border-radius:8px}
+
+/* ---- layout ---- */
+.cols{display:grid;grid-template-columns:232px minmax(0,1fr);gap:26px;align-items:start}
+@media (max-width:880px){.cols{grid-template-columns:1fr;gap:18px}}
+
+/* ---- filter rail ---- */
+.rail{position:sticky;top:calc(env(safe-area-inset-top,0px) + 70px);display:flex;flex-direction:column;gap:18px}
+@media (max-width:880px){.rail{position:static;top:auto}}
+.fgroup{display:flex;flex-direction:column;gap:9px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+@media (max-width:880px){.chips{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;scrollbar-width:thin}}
+.chip{background:var(--surface);border:1px solid var(--line);color:var(--ink-2);border-radius:99px;padding:5px 11px;font-size:12.5px;white-space:nowrap}
+.chip[aria-pressed="true"]{background:var(--gold-soft);border-color:var(--gold);color:var(--gold);font-weight:500}
+input[type=range]{width:100%;accent-color:var(--gold)}
+select{width:100%;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 9px;font:inherit;font-size:13px}
+.rail-foot{border-top:1px solid var(--line-soft);padding-top:14px;font-size:12px;color:var(--ink-3);display:flex;flex-direction:column;gap:6px}
+.rail-foot .k{color:var(--ink-2)}
+
+/* ---- feed ---- */
+.feed-head{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.feed-head h2{font-size:26px;font-weight:700}
+.feed-head .sub{font-size:13px;color:var(--ink-2);margin-top:3px}
+.count{font-family:var(--mono);font-size:12px;color:var(--ink-3)}
+.list{display:flex;flex-direction:column;gap:10px}
+
+.ev{display:grid;grid-template-columns:62px minmax(0,1fr) 150px;gap:16px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;transition:border-color .16s ease}
+.ev:hover{border-color:var(--ink-3)}
+.ev.sponsored{background:linear-gradient(180deg,var(--gold-soft),var(--surface) 72%)}
+@media (max-width:720px){.ev{grid-template-columns:52px minmax(0,1fr);}.ev .right{grid-column:1/-1;flex-direction:row;align-items:center;justify-content:space-between;border-top:1px solid var(--line-soft);padding-top:11px}}
+.when{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.when .t{font-size:17px;font-weight:600;display:block;letter-spacing:-.02em}
+.when .e{font-size:11px;color:var(--ink-3)}
+.ev h3{font-size:16.5px;font-weight:600;line-height:1.3}
+.place{font-size:13px;color:var(--ink-2);margin-top:2px}
+.place b{color:var(--ink);font-weight:500}
+.tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.tag{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);border:1px solid var(--line);border-radius:4px;padding:2px 5px}
+.tag.hot{color:var(--gold);border-color:var(--gold)}
+.facts{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:9px;font-size:12px;color:var(--ink-2)}
+.facts span{display:inline-flex;gap:5px;align-items:baseline}
+.facts .lab{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.scout{margin-top:9px;font-size:12.5px;color:var(--ink-2);border-left:2px solid var(--gold);padding-left:9px;line-height:1.45}
+.right{display:flex;flex-direction:column;align-items:flex-end;gap:9px}
+.meter{width:100%;max-width:140px;text-align:right}
+.meter .v{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--match)}
+.meter .track{height:4px;border-radius:99px;background:var(--match-track);margin-top:4px;overflow:hidden}
+.meter .fill{height:100%;background:var(--match);border-radius:99px}
+.meter .why{font-size:11px;color:var(--ink-3);margin-top:5px;line-height:1.35;text-align:right}
+.buy{display:inline-flex;align-items:center;gap:6px;background:var(--gold);color:var(--gold-ink);border:0;border-radius:8px;padding:8px 13px;font-size:13px;font-weight:600;white-space:nowrap}
+.buy.ghost{background:none;border:1px solid var(--line);color:var(--ink-2);font-weight:500}
+.buy .via{font-family:var(--mono);font-size:10px;font-weight:500;opacity:.75}
+.add{background:none;border:1px solid var(--line);border-radius:8px;color:var(--ink-2);padding:6px 10px;font-size:12px}
+.add.on{border-color:var(--good);color:var(--good)}
+.claimed{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--good)}
+
+/* ---- venue view ---- */
+.vhero{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:22px;display:flex;flex-direction:column;gap:14px}
+.vhero h2{font-size:32px;font-weight:700;line-height:1.05}
+.vmeta{display:flex;gap:6px 16px;flex-wrap:wrap;font-size:13px;color:var(--ink-2)}
+.fresh{font-family:var(--mono);font-size:11px;color:var(--good);display:inline-flex;gap:6px;align-items:center}
+.grid-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-top:4px}
+.fact{background:var(--surface);padding:13px 15px;display:flex;flex-direction:column;gap:4px}
+.fact .lab{font-family:var(--mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3)}
+.fact .val{font-size:15px;font-weight:600;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.fact .val.txt{font-family:var(--body);font-weight:500;font-size:14px}
+.panel{border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:18px 20px;margin-top:14px}
+.panel h3{font-size:16px;font-weight:600;margin-bottom:10px}
+.panel p{margin:0 0 9px;font-size:14px;color:var(--ink-2);max-width:62ch}
+.panel p:last-child{margin-bottom:0}
+.byline{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12px;color:var(--ink-3);border-top:1px solid var(--line-soft);padding-top:11px}
+.avatar{width:22px;height:22px;border-radius:99px;background:var(--surface-3);display:grid;place-items:center;font-family:var(--mono);font-size:10px;color:var(--ink-2)}
+.seolinks{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}
+.seolinks a{font-size:12.5px;color:var(--ink-2);text-decoration:none;border:1px solid var(--line);border-radius:99px;padding:5px 11px}
+.seolinks a:hover{color:var(--gold);border-color:var(--gold)}
+
+/* ---- planner ---- */
+.plan{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:880px){.plan{grid-template-columns:1fr}}
+.day{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;min-height:150px}
+.day > header{display:flex;align-items:baseline;justify-content:space-between;border-bottom:1px solid var(--line-soft);padding-bottom:9px}
+.day h3{font-size:15px;font-weight:600}
+.day .tot{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.slot{border-left:2px solid var(--gold);padding-left:10px;display:flex;flex-direction:column;gap:3px}
+.slot .st{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.slot .sn{font-size:13.5px;font-weight:500;line-height:1.3}
+.slot .sv{font-size:12px;color:var(--ink-2)}
+.slot .rm{align-self:flex-start;background:none;border:0;padding:0;font-size:11px;color:var(--ink-3);text-decoration:underline}
+.gap{font-size:11.5px;color:var(--ink-3);border:1px dashed var(--line);border-radius:7px;padding:7px 9px;line-height:1.4}
+.gap b{color:var(--gold);font-weight:600}
+.empty{font-size:12.5px;color:var(--ink-3);padding:6px 0}
+.plan-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-top:14px}
+.warn{display:flex;gap:9px;align-items:flex-start;margin-top:14px;border:1px solid var(--attn);border-radius:10px;padding:11px 13px;background:var(--surface);background:color-mix(in srgb,var(--attn) 9%,var(--surface));font-size:13px;color:var(--ink-2)}
+.warn b{color:var(--ink);font-weight:600}
+
+.foot{margin-top:34px;border-top:1px solid var(--line);padding-top:18px;display:flex;gap:20px;flex-wrap:wrap;justify-content:space-between;font-size:12px;color:var(--ink-3)}
+.foot p{margin:0;max-width:52ch;line-height:1.55}
+</style>
+
+<div class="bar">
+  <div class="bar-in">
+    <div class="mark"><b>Nattkartan</b><span class="city">Göteborg</span></div>
+    <div class="tabs" role="tablist" aria-label="Vy">
+      <button class="tab" role="tab" aria-selected="true" data-view="feed">Ikväll</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="venue">Pustervik</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="plan">Helgen</button>
+    </div>
+    <button class="switch" id="moneyBtn" aria-pressed="false"><span class="dot"></span>Visa intäktspunkter</button>
+  </div>
+</div>
+
+<div class="wrap" id="app">
+  <div class="disc">
+    <span>⚠</span>
+    <div><b>Mockup med påhittad data.</b> Spelningar, priser, åldersgränser, garderobsavgifter och spårvagnstider är illustrativa — verkliga värden måste hämtas från arrangör, dörr och Västtrafik innan något publiceras. Klubbnamnen finns i Göteborg men programmet nedan är hittat på.</div>
+  </div>
+
+  <!-- ============ FEED ============ -->
+  <section id="view-feed">
+    <div class="cols">
+      <aside class="rail">
+        <div class="fgroup">
+          <span class="eyebrow">Genre</span>
+          <div class="chips" id="genreChips"></div>
+        </div>
+        <div class="fgroup">
+          <span class="eyebrow">Entré · max <span class="num" id="priceOut">300</span> kr</span>
+          <input type="range" id="priceRange" min="0" max="300" step="20" value="300" aria-label="Högsta entrépris i kronor">
+        </div>
+        <div class="fgroup">
+          <span class="eyebrow">Krav</span>
+          <div class="chips">
+            <button class="chip" id="fLate" aria-pressed="false">Öppet efter 02</button>
+            <button class="chip" id="fAge" aria-pressed="false">18 år</button>
+            <button class="chip" id="fWalk" aria-pressed="false">Gångavstånd Järntorget</button>
+          </div>
+        </div>
+        <div class="fgroup">
+          <span class="eyebrow">Sortera</span>
+          <select id="sortSel" aria-label="Sortera">
+            <option value="match">Träff mot min musik</option>
+            <option value="time">Tid</option>
+            <option value="price">Pris</option>
+          </select>
+        </div>
+        <div class="rail-foot">
+          <span class="k">Matchat mot Spotify · 1 842 artister</span>
+          <span>Senast synkat 19 sep 18:40</span>
+          <span class="hook">Nästa stad låses upp i premium</span>
+        </div>
+      </aside>
+
+      <div>
+        <div class="feed-head">
+          <div>
+            <span class="eyebrow">Lördag 19 september</span>
+            <h2>Ikväll i Göteborg</h2>
+            <p class="sub">Klubb, live och kulturkvällar — sorterat efter vad du faktiskt lyssnar på.</p>
+          </div>
+          <span class="count" id="count"></span>
+        </div>
+        <div class="list" id="list"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ VENUE ============ -->
+  <section id="view-venue" hidden>
+    <div class="cols">
+      <aside class="rail">
+        <div class="fgroup">
+          <span class="eyebrow">Sidor som länkar hit</span>
+          <div class="rail-foot" style="border:0;padding:0">
+            <span class="k">Technoklubbar i Göteborg</span>
+            <span class="k">Klubbar öppna till 05</span>
+            <span class="k">Livescener vid Järntorget</span>
+            <span class="hook">Organisk trafik · 340 sidor</span>
+          </div>
+        </div>
+        <div class="fgroup">
+          <span class="eyebrow">Stämmer något inte?</span>
+          <button class="add" style="align-self:flex-start">Rapportera ändring</button>
+        </div>
+      </aside>
+      <div>
+        <div class="vhero">
+          <div>
+            <span class="eyebrow">Klubb &amp; livescen · Järntorget</span>
+            <h2>Pustervik</h2>
+            <div class="vmeta">
+              <span>Järntorgsgatan 12, 413 01 Göteborg</span>
+              <span class="fresh hooked">● Dörrinfo verifierad 17 sep <span class="hook">Anspråk av arrangör</span></span>
+            </div>
+          </div>
+          <div class="grid-facts">
+            <div class="fact"><span class="lab">Åldersgräns</span><span class="val">20 år</span></div>
+            <div class="fact"><span class="lab">Entré ikväll</span><span class="val">180 kr</span></div>
+            <div class="fact"><span class="lab">Betalning</span><span class="val txt">Endast kort</span></div>
+            <div class="fact"><span class="lab">Garderob</span><span class="val">30 kr</span></div>
+            <div class="fact"><span class="lab">Stänger</span><span class="val">03:00</span></div>
+            <div class="fact"><span class="lab">Fylls runt</span><span class="val">23:30</span></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Så funkar dörren</h3>
+          <p>Kön är i praktiken obefintlig före 23:00 och som värst mellan 00:15 och 01:00, när förfesterna i Linné släpper. Garderoben är obligatorisk från oktober till april och tar bara kort — räkna 30 kr per person och en extra kvart i kö vid utgången.</p>
+          <p>Stora salen och klubbvåningen har olika stängningstider samma kväll; biljetten gäller båda. Dörren släpper inte in efter 02:15 även om klubben håller öppet till 03.</p>
+          <div class="byline">
+            <span class="avatar">LN</span>
+            <span>Skrivet av Linnéa, lokal scout i Göteborg sedan 2024 · 61 platser</span>
+            <span class="hook">Intäktsdelning scout</span>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Hem efteråt</h3>
+          <p>Från Järntorget: spårvagn 3 mot Marklandsgatan, sista avgång 01:12. Efter det går nattbuss från hållplatsen på Första Långgatan. Till Hisingen är gångvägen över Götaälvbron 22 minuter om du missar sista turen.</p>
+        </div>
+
+        <div class="panel hooked">
+          <h3>Kommande på Pustervik <span class="hook">Affiliate per biljett</span></h3>
+          <div class="list" style="gap:8px">
+            <div class="ev" style="grid-template-columns:62px minmax(0,1fr) 120px;padding:11px 13px">
+              <span class="when"><span class="t">22:00</span><span class="e">–03:00</span></span>
+              <div><h3 style="font-size:14.5px">Klubb Vinyl: Ge Ge Ge b2b Sara Lo</h3><p class="place">Ikväll · lör 19 sep</p></div>
+              <div class="right"><button class="buy">180 kr <span class="via">Tickster</span></button></div>
+            </div>
+            <div class="ev" style="grid-template-columns:62px minmax(0,1fr) 120px;padding:11px 13px">
+              <span class="when"><span class="t">19:30</span><span class="e">–23:00</span></span>
+              <div><h3 style="font-size:14.5px">Hola Ghost + Die Rotzz</h3><p class="place">fre 25 sep · 12 biljetter kvar</p></div>
+              <div class="right"><button class="buy">245 kr <span class="via">Tickster</span></button></div>
+            </div>
+            <div class="ev" style="grid-template-columns:62px minmax(0,1fr) 120px;padding:11px 13px">
+              <span class="when"><span class="t">21:00</span><span class="e">–02:00</span></span>
+              <div><h3 style="font-size:14.5px">Kulturnatta: fri entré till tre rum</h3><p class="place">lör 3 okt · ingen biljett</p></div>
+              <div class="right"><button class="buy ghost">Fri entré</button></div>
+            </div>
+          </div>
+          <div class="seolinks">
+            <a href="#">Technoklubbar i Göteborg</a>
+            <a href="#">Klubbar med 18-årsgräns</a>
+            <a href="#">Öppet efter 03 i Göteborg</a>
+            <a href="#">Livemusik på Järntorget</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PLANNER ============ -->
+  <section id="view-plan" hidden>
+    <div class="feed-head">
+      <div>
+        <span class="eyebrow">Fredag 25 – söndag 27 september</span>
+        <h2>Din helg</h2>
+        <p class="sub">Tre kvällar, gångavstånd inräknat, med sista kollektivtrafiken kontrollerad per kväll.</p>
+      </div>
+      <span class="count">3 nätter · 5 stopp</span>
+    </div>
+    <div class="plan" id="plan"></div>
+    <div class="plan-sum">
+      <div class="fact"><span class="lab">Entré totalt</span><span class="val" id="sumPrice">0 kr</span></div>
+      <div class="fact"><span class="lab">Garderob</span><span class="val" id="sumCoat">0 kr</span></div>
+      <div class="fact"><span class="lab">Gångavstånd</span><span class="val">3,1 km</span></div>
+      <div class="fact"><span class="lab">Snittträff</span><span class="val" id="sumMatch">0 %</span></div>
+    </div>
+    <div class="warn">
+      <span>▲</span>
+      <div><b>Lördag 01:30:</b> du är på Andra Långgatan när sista spårvagn 6 mot Kortedala gått. Nattbuss från Järntorget 01:55, annars 41 minuters gångväg. <span class="hook">Taxipartner</span></div>
+    </div>
+    <div class="panel hooked" style="margin-top:14px">
+      <h3>Mässbesökare i Göteborg? <span class="hook">B2B · Svenska Mässan</span></h3>
+      <p>Tre kvällar i en stad du inte känner, utan tid att läsa fem Facebookgrupper. Välj område, budget och sluttid — planen tar hänsyn till att du ska upp klockan sju.</p>
+      <button class="buy" style="margin-top:4px">Skapa helgplan</button>
+    </div>
+  </section>
+
+  <div class="foot">
+    <p><b>Hypotes att pröva vecka 1:</b> Göteborg har tillräckligt med klubb- och livekvällar per helg för att en matchande feed ska kännas full, och de ligger spridda över minst fyra biljettplattformar — vilket är precis det gapet en samlingssida stänger.</p>
+    <p>Nattkartan · mockup 19 sep 2026 · all data påhittad</p>
+  </div>
+</div>
+
+<script>
+const EVENTS=[
+ {id:1,t:"22:00",e:"03:00",title:"Klubb Vinyl: Ge Ge Ge b2b Sara Lo",venue:"Pustervik",area:"Järntorget",g:["techno","house"],age:20,price:180,coat:30,late:true,walk:true,claimed:true,match:94,why:"Ligger nära Skee Mask och Anthony Naples i din rotation",ticket:"Tickster",scout:"Fylls inte förrän 23:30 — kön är max tio minuter innan dess.",tags:["Sista biljetterna"]},
+ {id:2,t:"21:00",e:"02:00",title:"Betong: ambient och ljudkonst i fyra rum",venue:"Röda Sten Konsthall",area:"Klippan",g:["ambient","experimentellt"],age:18,price:200,coat:0,late:true,walk:false,claimed:true,match:88,why:"Du spelar Kali Malone och Caterina Barbieri mest av allt i höst",ticket:"Billetto",scout:"Tag med lager — hallen värms inte upp. Sista spårvagn från Vagnhallen 00:48.",tags:[]},
+ {id:3,t:"23:00",e:"03:00",title:"Basement: dub, digi-dancehall, 7\"-only",venue:"Bee",area:"Andra Långgatan",g:["dub","dancehall"],age:20,price:100,coat:30,late:true,walk:true,claimed:false,match:79,why:"Dub-hyllan i ditt bibliotek har vuxit med 40 skivor i år",ticket:"Vid dörren",scout:"Kontant funkar inte. Litet ställe — efter 00:30 är det enkelriktat in.",tags:[]},
+ {id:4,t:"19:30",e:"23:30",title:"Fri improv: tre set, ingen soundcheck",venue:"Musikens Hus",area:"Järntorget",g:["improv","jazz"],age:18,price:120,coat:0,late:false,walk:true,claimed:false,match:71,why:"Samma krets som spelningarna du sparade i mars",ticket:"Nortic",scout:"Börjar i tid, vilket är ovanligt. Efterfest i baren till 01.",tags:[]},
+ {id:5,t:"20:00",e:"01:00",title:"Balkanbrass + efterfest",venue:"Oceanen",area:"Stigbergstorget",g:["folk","live"],age:18,price:260,coat:30,late:false,walk:false,claimed:true,match:66,why:"Du gick på två liknande kvällar förra vintern",ticket:"Tickster",scout:"Sittplatser först, dansgolv efter 22. Familjevänligt tidigt.",tags:[]},
+ {id:6,t:"20:00",e:"01:00",title:"Punk och powerpop: tre band",venue:"Sticky Fingers",area:"Kaserntorget",g:["punk","live"],age:18,price:150,coat:30,late:false,walk:false,claimed:false,match:58,why:"Ett av banden delar medlemmar med något du följer",ticket:"Vid dörren",scout:"Första bandet spelar 20:15 skarpt, sista 23:40.",tags:[]},
+ {id:7,t:"22:00",e:"03:00",title:"Studentklubb: två golv",venue:"Kårhuset",area:"Chalmers",g:["pop","house"],age:18,price:80,coat:20,late:true,walk:false,claimed:false,match:52,why:"Bred lista, lite överlapp med det du spelar om",ticket:"Vid dörren",scout:"Kårleg eller gäst på lista krävs — ta med en student.",tags:[]},
+ {id:8,t:"22:30",e:"03:00",title:"Disco Inferno",venue:"Storan",area:"Kungsparken",g:["disco","pop"],age:20,price:195,coat:40,late:true,walk:false,claimed:true,match:44,why:"Lite överlapp, men du sparade två discoskivor i augusti",ticket:"Tickster",scout:"Kö från 23. Klädkod i praktiken, även om ingen skriver det.",tags:[]},
+ {id:9,t:"23:00",e:"03:00",title:"Lördagsklubben",venue:"Trädgår'n",area:"Nya Allén",g:["pop","hits"],age:23,price:220,coat:40,late:true,walk:false,claimed:true,match:31,why:"Matchar knappt din lista — visas för att den är stor ikväll",ticket:"Tickster",scout:"Hårdast dörr i stan. 23 år gäller strikt.",tags:["Sponsrad"],sponsored:true},
+ {id:10,t:"17:00",e:"23:00",title:"Afterwork som blir klubb",venue:"Henriksberg",area:"Stigbergstorget",g:["pop","hits"],age:23,price:0,coat:30,late:false,walk:false,claimed:false,match:28,why:"Utanför din smak, men fri entré före 22",ticket:"Fri entré",scout:"Fri entré före 22, sedan 160 kr. Utsikt över älven.",tags:[]}
+];
+const GENRES=["techno","house","ambient","dub","jazz","punk","disco","pop","live"];
+const state={genres:new Set(),price:300,late:false,age:false,walk:false,sort:"match",
+  plan:{fre:[{t:"19:30",n:"Hola Ghost + Die Rotzz",v:"Pustervik",p:245,c:30,m:74}],
+        lor:[{t:"21:00",n:"Betong: ljudkonst i fyra rum",v:"Röda Sten",p:200,c:0,m:88},
+             {t:"00:30",n:"Basement: dub och digi-dancehall",v:"Bee",p:100,c:30,m:79}],
+        son:[{t:"16:00",n:"Söndagsmatiné: stråkkvartett",v:"Artisten",p:120,c:0,m:63},
+             {t:"20:00",n:"Skivkväll i baren, fri entré",v:"Oceanen",p:0,c:0,m:58}]}};
+
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ---- views ---- */
+document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>{
+  document.querySelectorAll(".tab").forEach(o=>o.setAttribute("aria-selected",String(o===b)));
+  ["feed","venue","plan"].forEach(v=>{$("#view-"+v).hidden = v!==b.dataset.view});
+}));
+$("#moneyBtn").addEventListener("click",e=>{
+  const on=e.currentTarget.getAttribute("aria-pressed")==="true";
+  e.currentTarget.setAttribute("aria-pressed",String(!on));
+  document.body.classList.toggle("money-on",!on);
+});
+
+/* ---- filters ---- */
+const gc=$("#genreChips");
+GENRES.forEach(g=>{
+  const b=document.createElement("button");
+  b.className="chip";b.type="button";b.setAttribute("aria-pressed","false");b.textContent=g;
+  b.addEventListener("click",()=>{
+    const on=b.getAttribute("aria-pressed")==="true";
+    b.setAttribute("aria-pressed",String(!on));
+    on?state.genres.delete(g):state.genres.add(g);
+    render();
+  });
+  gc.appendChild(b);
+});
+$("#priceRange").addEventListener("input",e=>{state.price=+e.target.value;$("#priceOut").textContent=e.target.value;render()});
+[["fLate","late"],["fAge","age"],["fWalk","walk"]].forEach(([id,key])=>{
+  $("#"+id).addEventListener("click",e=>{
+    state[key]=!state[key];
+    e.currentTarget.setAttribute("aria-pressed",String(state[key]));
+    render();
+  });
+});
+$("#sortSel").addEventListener("change",e=>{state.sort=e.target.value;render()});
+
+/* ---- feed ---- */
+function render(){
+  let rows=EVENTS.filter(v=>
+    (state.genres.size===0 || v.g.some(g=>state.genres.has(g))) &&
+    v.price<=state.price &&
+    (!state.late || v.late) &&
+    (!state.age || v.age<=18) &&
+    (!state.walk || v.walk));
+  rows.sort((a,b)=> state.sort==="match" ? b.match-a.match
+    : state.sort==="price" ? a.price-b.price
+    : a.t.localeCompare(b.t));
+  $("#count").textContent = rows.length+" av "+EVENTS.length+" kvällar";
+  $("#list").innerHTML = rows.map(card).join("") ||
+    '<p class="empty">Inget matchar filtren. Höj entrégränsen eller släpp ett genrefilter.</p>';
+  document.querySelectorAll(".add").forEach(b=>{
+    if(!b.dataset.id) return;
+    const cur=EVENTS.find(x=>x.id===+b.dataset.id);
+    if(cur && state.plan.lor.some(s=>s.n===cur.title)){b.classList.add("on");b.textContent="I planen ✓";}
+    b.addEventListener("click",()=>{
+      const ev=EVENTS.find(x=>x.id===+b.dataset.id);
+      if(state.plan.lor.some(s=>s.n===ev.title)) return;
+      state.plan.lor.push({t:ev.t,n:ev.title,v:ev.venue,p:ev.price,c:ev.coat,m:ev.match});
+      b.classList.add("on");b.textContent="I planen ✓";
+      renderPlan();
+    });
+  });
+}
+function card(v){
+  const buy = v.ticket==="Vid dörren" || v.ticket==="Fri entré"
+    ? '<button class="buy ghost">'+(v.price? v.price+" kr i dörren":"Fri entré")+'</button>'
+    : '<button class="buy hooked">'+v.price+' kr <span class="via">'+esc(v.ticket)+'</span><span class="hook">Affiliate</span></button>';
+  return '<article class="ev'+(v.sponsored?" sponsored":"")+'">'
+    +'<span class="when"><span class="t">'+v.t+'</span><span class="e">–'+v.e+'</span></span>'
+    +'<div><h3>'+esc(v.title)+'</h3>'
+      +'<p class="place"><b>'+esc(v.venue)+'</b> · '+esc(v.area)
+        +(v.claimed?' · <span class="claimed hooked">✓ uppdaterad av stället<span class="hook">Betald profil</span></span>':'')+'</p>'
+      +'<div class="tags">'+v.g.map(g=>'<span class="tag">'+g+'</span>').join("")
+        +v.tags.map(t=>'<span class="tag hot'+(t==="Sponsrad"?' hooked':'')+'">'+t+(t==="Sponsrad"?'<span class="hook">Toppplacering</span>':'')+'</span>').join("")+'</div>'
+      +'<div class="facts">'
+        +'<span><span class="lab">Ålder</span><span class="num">'+v.age+' år</span></span>'
+        +'<span><span class="lab">Entré</span><span class="num">'+(v.price?v.price+" kr":"fri")+'</span></span>'
+        +'<span><span class="lab">Garderob</span><span class="num">'+(v.coat?v.coat+" kr":"—")+'</span></span>'
+        +'<span><span class="lab">Betalning</span>kort</span>'
+      +'</div>'
+      +'<p class="scout">'+esc(v.scout)+'</p></div>'
+    +'<div class="right">'
+      +'<div class="meter"><span class="v">'+v.match+' % träff</span>'
+        +'<div class="track"><span class="fill" style="width:'+v.match+'%"></span></div>'
+        +'<p class="why">'+esc(v.why)+'</p></div>'
+      +buy
+      +'<button class="add" data-id="'+v.id+'">+ Till helgplan</button>'
+    +'</div></article>';
+}
+
+/* ---- planner ---- */
+const DAYS=[["fre","Fredag 25 sep"],["lor","Lördag 26 sep"],["son","Söndag 27 sep"]];
+function renderPlan(){
+  $("#plan").innerHTML = DAYS.map(([k,label])=>{
+    const rows=state.plan[k].slice().sort((a,b)=>a.t.localeCompare(b.t));
+    const tot=rows.reduce((s,r)=>s+r.p+r.c,0);
+    const body = rows.length ? rows.map((r,i)=>
+      '<div class="slot"><span class="st">'+r.t+' · '+esc(r.v)+'</span>'
+      +'<span class="sn">'+esc(r.n)+'</span>'
+      +'<span class="sv"><span class="num">'+(r.p?r.p+" kr":"fri entré")+(r.c?" + "+r.c+" kr garderob":"")+'</span> · '+r.m+' % träff</span>'
+      +'<button class="rm" data-day="'+k+'" data-i="'+i+'">Ta bort</button></div>').join("")
+      : '<p class="empty">Inget bokat. Lägg till från Ikväll-flödet.</p>';
+    const gap = k==="lor" && rows.length>1
+      ? '<p class="gap">Glapp 23:00–00:30. <b>7 minuters gångväg</b> Röda Sten → Andra Långgatan, eller stanna kvar i baren.</p>' : "";
+    return '<section class="day"><header><h3>'+label+'</h3><span class="tot num">'+tot+' kr</span></header>'+body+gap+'</section>';
+  }).join("");
+  document.querySelectorAll(".rm").forEach(b=>b.addEventListener("click",()=>{
+    state.plan[b.dataset.day].splice(+b.dataset.i,1);renderPlan();
+  }));
+  const all=DAYS.flatMap(([k])=>state.plan[k]);
+  $("#sumPrice").textContent=all.reduce((s,r)=>s+r.p,0)+" kr";
+  $("#sumCoat").textContent=all.reduce((s,r)=>s+r.c,0)+" kr";
+  $("#sumMatch").textContent=(all.length?Math.round(all.reduce((s,r)=>s+r.m,0)/all.length):0)+" %";
+}
+render();renderPlan();
+</script>
