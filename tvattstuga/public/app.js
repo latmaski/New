@@ -1,0 +1,355 @@
+'use strict';
+
+const $ = (id) => document.getElementById(id);
+const narrow = window.matchMedia('(max-width: 860px)');
+
+const state = {
+  config: null,
+  me: null,
+  weekStart: null, // måndag, 'YYYY-MM-DD'
+  selectedDay: null, // används i mobilvyn
+  now: null,
+  bookings: [],
+  mine: [],
+};
+
+// ---------- Datum (alltid som 'YYYY-MM-DD'-strängar i lokal tid) ----------
+const toDate = (s) => new Date(`${s}T00:00:00Z`);
+const addDays = (s, n) => { const d = toDate(s); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+const mondayOf = (s) => addDays(s, -((toDate(s).getUTCDay() + 6) % 7));
+const fmt = (s, opts) => toDate(s).toLocaleDateString('sv-SE', { timeZone: 'UTC', ...opts });
+const pad = (h) => String(h).padStart(2, '0');
+const hourIndex = (date, hour) => toDate(date).getTime() / 3600000 + hour;
+
+function isoWeek(s) {
+  const d = toDate(s);
+  d.setUTCDate(d.getUTCDate() + 3 - ((d.getUTCDay() + 6) % 7));
+  const firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+  return 1 + Math.round(((d - firstThursday) / 86400000 - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7);
+}
+
+function describe(b) {
+  const day = b.date === state.now.date ? 'idag' : b.date === addDays(state.now.date, 1) ? 'imorgon' : fmt(b.date, { weekday: 'long', day: 'numeric', month: 'short' });
+  return { day, time: `${pad(b.startHour)}:00–${pad(b.endHour)}:00` };
+}
+
+// ---------- API ----------
+async function api(path, options = {}) {
+  const res = await fetch(path, {
+    ...options,
+    headers: options.body ? { 'Content-Type': 'application/json' } : {},
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && path !== '/api/login') { showLogin(); throw new Error(data.error || 'Du är inte inloggad.'); }
+  if (!res.ok) throw new Error(data.error || 'Något gick fel.');
+  return data;
+}
+
+let toastTimer;
+function toast(message, isError = false) {
+  const el = $('toast');
+  el.textContent = message;
+  el.className = `toast show${isError ? ' error' : ''}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = 'toast'; }, 3500);
+}
+
+// ---------- Inloggning ----------
+function renderAptPicker() {
+  const last = localStorageGet('lastApartment');
+  $('apt-picker').innerHTML = '';
+  for (const apt of state.config.apartments) {
+    const label = document.createElement('label');
+    const short = apt.name.replace(/^Lägenhet\s*/i, '');
+    label.innerHTML = `<input type="radio" name="apartment" value="${apt.id}"><span><b></b>lgh</span>`;
+    label.querySelector('b').textContent = short;
+    label.title = apt.name;
+    label.querySelector('input').setAttribute('aria-label', apt.name);
+    if (apt.id === last) label.querySelector('input').checked = true;
+    $('apt-picker').append(label);
+  }
+}
+
+function localStorageGet(key) { try { return localStorage.getItem(key); } catch { return null; } }
+function localStorageSet(key, value) { try { localStorage.setItem(key, value); } catch { /* privat läge */ } }
+
+function showLogin() {
+  state.me = null;
+  $('app').hidden = true;
+  $('login').hidden = false;
+  renderAptPicker();
+  $('login-password').value = '';
+}
+
+$('login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const apartmentId = new FormData(e.target).get('apartment');
+  const password = $('login-password').value;
+  $('login-error').textContent = '';
+  if (!apartmentId) { $('login-error').textContent = 'Välj din lägenhet.'; return; }
+  if (!password) { $('login-error').textContent = 'Skriv ditt lösenord.'; return; }
+  try {
+    await api('/api/login', { method: 'POST', body: { apartmentId, password } });
+    localStorageSet('lastApartment', apartmentId);
+    await startApp();
+  } catch (err) {
+    $('login-error').textContent = err.message;
+  }
+});
+
+$('btn-logout').addEventListener('click', async () => {
+  await api('/api/logout', { method: 'POST' }).catch(() => {});
+  showLogin();
+});
+
+// ---------- Byt lösenord ----------
+$('btn-password').addEventListener('click', () => {
+  $('password-form').reset();
+  $('pw-error').textContent = '';
+  $('password-dialog').showModal();
+});
+$('pw-cancel').addEventListener('click', () => $('password-dialog').close());
+$('password-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    await api('/api/password', { method: 'POST', body: { currentPassword: $('pw-current').value, newPassword: $('pw-new').value } });
+    $('password-dialog').close();
+    toast('Lösenordet är bytt.');
+  } catch (err) {
+    $('pw-error').textContent = err.message;
+  }
+});
+
+// ---------- Kalender ----------
+async function load() {
+  const data = await api(`/api/bookings?from=${state.weekStart}&to=${addDays(state.weekStart, 6)}`);
+  state.now = data.now;
+  state.bookings = data.bookings;
+  state.mine = data.mine;
+  render();
+}
+
+function render() {
+  renderMine();
+  renderHeader();
+  renderGrid();
+}
+
+function renderMine() {
+  const { maxActiveBookings } = state.config;
+  $('mine-count').textContent = `${state.mine.length} av ${maxActiveBookings}`;
+  const list = $('mine-list');
+  list.innerHTML = '';
+  if (!state.mine.length) {
+    const li = document.createElement('li');
+    li.className = 'empty';
+    li.textContent = 'Du har inga bokade pass. Välj en ledig starttid i kalendern.';
+    list.append(li);
+  }
+  for (const b of state.mine) {
+    const { day, time } = describe(b);
+    const li = document.createElement('li');
+    li.innerHTML = '<div class="when"><b></b><span></span></div><button class="btn ghost small danger" type="button">Avboka</button>';
+    li.querySelector('b').textContent = day;
+    li.querySelector('span').textContent = time;
+    li.querySelector('button').addEventListener('click', () => cancelBooking(b));
+    list.append(li);
+  }
+}
+
+function renderHeader() {
+  const end = addDays(state.weekStart, 6);
+  $('week-title').textContent = `Vecka ${isoWeek(state.weekStart)}`;
+  $('week-range').textContent = `${fmt(state.weekStart, { day: 'numeric', month: 'short' })} – ${fmt(end, { day: 'numeric', month: 'short', year: 'numeric' })}`;
+  $('prev-week').disabled = state.weekStart <= mondayOf(state.now.date);
+  $('prev-week').style.visibility = $('prev-week').disabled ? 'hidden' : '';
+  const horizon = addDays(state.now.date, state.config.bookingHorizonDays);
+  $('next-week').style.visibility = addDays(state.weekStart, 7) > horizon ? 'hidden' : '';
+
+  const strip = $('day-strip');
+  strip.innerHTML = '';
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(state.weekStart, i);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.setAttribute('role', 'tab');
+    btn.setAttribute('aria-selected', String(d === state.selectedDay));
+    if (d === state.now.date) btn.classList.add('today');
+    btn.innerHTML = `${fmt(d, { weekday: 'short' }).replace('.', '')}<b>${toDate(d).getUTCDate()}</b>`;
+    btn.addEventListener('click', () => { state.selectedDay = d; render(); });
+    strip.append(btn);
+  }
+}
+
+function cellStatus(date, hour) {
+  const { openHour, closeHour, passHours, maxActiveBookings, bookingHorizonDays } = state.config;
+  const start = hourIndex(date, hour);
+  if (start < hourIndex(state.now.date, state.now.hour)) return { kind: 'past' };
+  if (date > addDays(state.now.date, bookingHorizonDays)) return { kind: 'blocked', reason: `Du kan boka högst ${bookingHorizonDays} dagar fram.` };
+  if (hour + passHours > closeHour) return { kind: 'blocked', reason: `Sista starttid är ${pad(closeHour - passHours)}:00.` };
+  const clash = state.bookings.some((b) => b.date === date && b.startHour < hour + passHours && hour < b.endHour);
+  if (clash) return { kind: 'blocked', reason: 'Ett pass härifrån krockar med en annan bokning.' };
+  if (state.mine.length >= maxActiveBookings) return { kind: 'blocked', reason: `Du har redan ${maxActiveBookings} pass bokade.` };
+  return { kind: 'start' };
+}
+
+function renderGrid() {
+  const { openHour, closeHour, passHours } = state.config;
+  const days = narrow.matches ? [state.selectedDay] : Array.from({ length: 7 }, (_, i) => addDays(state.weekStart, i));
+  const grid = $('grid');
+  const hours = closeHour - openHour;
+  grid.innerHTML = '';
+  grid.style.gridTemplateColumns = `44px repeat(${days.length}, minmax(0, 1fr))`;
+  grid.style.gridTemplateRows = `auto repeat(${hours}, var(--row, 26px))`;
+  const cells = new Map();
+
+  const place = (el, col, row, span = 1) => { el.style.gridColumn = String(col); el.style.gridRow = `${row} / span ${span}`; grid.append(el); };
+
+  days.forEach((date, i) => {
+    const head = document.createElement('div');
+    head.className = `day-head${date === state.now.date ? ' today' : ''}`;
+    head.innerHTML = `<b></b>${fmt(date, { day: 'numeric', month: 'short' })}`;
+    head.querySelector('b').textContent = fmt(date, { weekday: 'short' }).replace('.', '');
+    place(head, i + 2, 1);
+  });
+
+  for (let h = openHour; h < closeHour; h++) {
+    const label = document.createElement('div');
+    label.className = 'hour';
+    label.textContent = `${pad(h)}:00`;
+    place(label, 1, h - openHour + 2);
+
+    days.forEach((date, i) => {
+      const status = cellStatus(date, h);
+      const cell = document.createElement('button');
+      cell.type = 'button';
+      cell.className = `cell ${status.kind}`;
+      cell.dataset.label = `${pad(h)}–${pad(h + passHours)}`;
+      if (status.kind === 'start') {
+        cell.setAttribute('aria-label', `Boka ${fmt(date, { weekday: 'long', day: 'numeric', month: 'long' })} ${pad(h)}:00–${pad(h + passHours)}:00`);
+        cell.addEventListener('click', () => confirmBooking(date, h));
+        cell.addEventListener('mouseenter', () => preview(cells, date, h, true));
+        cell.addEventListener('mouseleave', () => preview(cells, date, h, false));
+        cell.addEventListener('focus', () => preview(cells, date, h, true));
+        cell.addEventListener('blur', () => preview(cells, date, h, false));
+      } else {
+        cell.tabIndex = -1;
+        cell.setAttribute('aria-hidden', 'true');
+        if (status.reason) {
+          cell.title = status.reason;
+          cell.addEventListener('click', () => toast(status.reason, true));
+        }
+      }
+      cells.set(`${date}|${h}`, cell);
+      place(cell, i + 2, h - openHour + 2);
+    });
+  }
+
+  const nowIdx = hourIndex(state.now.date, state.now.hour) + state.now.minute / 60;
+  for (const b of state.bookings) {
+    const col = days.indexOf(b.date);
+    if (col < 0) continue;
+    const el = document.createElement('div');
+    const ended = hourIndex(b.date, b.endHour) <= nowIdx;
+    el.className = `booking ${b.mine ? 'mine' : 'taken'}${ended ? ' ended' : ''}`;
+    el.innerHTML = '<b></b><span></span>';
+    el.querySelector('b').textContent = b.mine ? 'Ditt pass' : b.apartmentName;
+    el.querySelector('span').textContent = `${pad(b.startHour)}–${pad(b.endHour)}`;
+    place(el, col + 2, b.startHour - openHour + 2, b.endHour - b.startHour);
+  }
+
+  const todayCol = days.indexOf(state.now.date);
+  if (todayCol >= 0 && state.now.hour >= openHour && state.now.hour < closeHour) {
+    const line = document.createElement('div');
+    line.className = 'now-line';
+    line.style.marginTop = `calc(${(state.now.minute / 60).toFixed(3)} * var(--row, 26px))`;
+    place(line, todayCol + 2, state.now.hour - openHour + 2);
+  }
+}
+
+function preview(cells, date, hour, on) {
+  for (let h = hour; h < hour + state.config.passHours; h++) {
+    const c = cells.get(`${date}|${h}`);
+    if (!c) continue;
+    c.classList.toggle('preview', on);
+    if (h === hour) c.classList.toggle('preview-head', on);
+  }
+}
+
+function confirmBooking(date, startHour) {
+  const endHour = startHour + state.config.passHours;
+  $('confirm-title').textContent = `Boka ${fmt(date, { weekday: 'long', day: 'numeric', month: 'long' })}?`;
+  $('confirm-text').textContent = `Tvättstugan blir din kl ${pad(startHour)}:00–${pad(endHour)}:00.`;
+  const dialog = $('confirm-dialog');
+  dialog.returnValue = '';
+  dialog.showModal();
+  dialog.addEventListener('close', async () => {
+    if (dialog.returnValue !== 'ok') return;
+    try {
+      await api('/api/bookings', { method: 'POST', body: { date, startHour } });
+      toast(`Bokat ${pad(startHour)}:00–${pad(endHour)}:00.`);
+    } catch (err) {
+      toast(err.message, true);
+    }
+    load().catch((err) => toast(err.message, true));
+  }, { once: true });
+}
+
+async function cancelBooking(b) {
+  const { day, time } = describe(b);
+  if (!window.confirm(`Avboka ditt pass ${day} ${time}?`)) return;
+  try {
+    await api(`/api/bookings/${b.id}`, { method: 'DELETE' });
+    toast('Passet är avbokat.');
+  } catch (err) {
+    toast(err.message, true);
+  }
+  load().catch((err) => toast(err.message, true));
+}
+
+function goToWeek(monday) {
+  const prevIndex = state.selectedDay ? (toDate(state.selectedDay) - toDate(state.weekStart)) / 86400000 : 0;
+  state.weekStart = monday;
+  state.selectedDay = addDays(monday, prevIndex);
+  if (state.selectedDay < state.now.date) state.selectedDay = state.now.date;
+  load().catch((err) => toast(err.message, true));
+}
+
+$('prev-week').addEventListener('click', () => goToWeek(addDays(state.weekStart, -7)));
+$('next-week').addEventListener('click', () => goToWeek(addDays(state.weekStart, 7)));
+$('today-btn').addEventListener('click', () => { state.selectedDay = state.now.date; goToWeek(mondayOf(state.now.date)); });
+narrow.addEventListener('change', () => state.now && renderGrid());
+
+// ---------- Start ----------
+async function startApp() {
+  const me = await api('/api/me');
+  state.me = me;
+  $('me-name').textContent = me.apartmentName;
+  const first = await api('/api/bookings');
+  state.now = first.now;
+  // Efter sista starttiden finns inget kvar att boka idag – visa imorgon.
+  const lastStart = state.config.closeHour - state.config.passHours;
+  const firstDay = state.now.hour > lastStart ? addDays(state.now.date, 1) : state.now.date;
+  state.weekStart = mondayOf(firstDay);
+  state.selectedDay = firstDay;
+  await load();
+  $('login').hidden = true;
+  $('app').hidden = false;
+}
+
+async function init() {
+  state.config = await api('/api/config');
+  const { openHour, closeHour, passHours, maxActiveBookings, bookingHorizonDays } = state.config;
+  $('rules-text').textContent = `Pass om ${passHours} timmar mellan ${pad(openHour)}:00 och ${pad(closeHour)}:00, alla dagar. `
+    + `Max ${maxActiveBookings} bokade pass åt gången, upp till ${bookingHorizonDays} dagar fram.`;
+  try {
+    await startApp();
+  } catch {
+    showLogin();
+  }
+  setInterval(() => { if (state.me && !document.hidden) load().catch(() => {}); }, 60000);
+  document.addEventListener('visibilitychange', () => { if (state.me && !document.hidden) load().catch(() => {}); });
+}
+
+init();

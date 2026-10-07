@@ -1,0 +1,13 @@
+{
+  "name": "tvattstuga-stora-pukevagen-12",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bokning av tvättstugan på Stora Pukevägen 12",
+  "main": "server.js",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node server.js",
+    "set-password": "node scripts/set-password.js",
+    "test": "node --test test/*.test.js"
+  }
+}

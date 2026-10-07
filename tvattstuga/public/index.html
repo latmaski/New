@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tvättstugan · Stora Pukevägen 12</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<main id="login" class="login" hidden>
+  <div class="login-card">
+    <p class="eyebrow">Tvättstugan</p>
+    <h1 class="building-name">Stora Pukevägen 12</h1>
+    <form id="login-form" novalidate>
+      <fieldset>
+        <legend>Välj din lägenhet</legend>
+        <div id="apt-picker" class="apt-picker"></div>
+      </fieldset>
+      <label class="field">
+        <span>Lösenord</span>
+        <input id="login-password" type="password" autocomplete="current-password" required>
+      </label>
+      <p id="login-error" class="form-error" role="alert"></p>
+      <button class="btn primary wide" type="submit">Logga in</button>
+    </form>
+  </div>
+</main>
+
+<div id="app" hidden>
+  <header class="top">
+    <div class="brand">
+      <span class="eyebrow">Tvättstugan</span>
+      <strong class="building-name">Stora Pukevägen 12</strong>
+    </div>
+    <div class="who">
+      <span id="me-name" class="me-pill"></span>
+      <button id="btn-password" class="btn ghost small" type="button">Byt lösenord</button>
+      <button id="btn-logout" class="btn ghost small" type="button">Logga ut</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="mine" aria-labelledby="mine-title">
+      <div class="mine-head">
+        <h2 id="mine-title">Mina pass</h2>
+        <span id="mine-count" class="count"></span>
+      </div>
+      <ul id="mine-list" class="mine-list"></ul>
+      <p class="rules" id="rules-text"></p>
+    </section>
+
+    <section class="calendar" aria-labelledby="week-title">
+      <div class="cal-head">
+        <button id="prev-week" class="btn ghost icon" type="button" aria-label="Föregående vecka">‹</button>
+        <div class="cal-title">
+          <h2 id="week-title"></h2>
+          <span id="week-range" class="muted"></span>
+        </div>
+        <button id="next-week" class="btn ghost icon" type="button" aria-label="Nästa vecka">›</button>
+        <button id="today-btn" class="btn ghost small" type="button">Idag</button>
+      </div>
+      <div id="day-strip" class="day-strip" role="tablist" aria-label="Välj dag"></div>
+      <div id="grid" class="grid" aria-live="polite"></div>
+      <div class="legend">
+        <span><i class="sw sw-free"></i>Ledigt – klicka på starttid</span>
+        <span><i class="sw sw-mine"></i>Ditt pass</span>
+        <span><i class="sw sw-taken"></i>Bokat</span>
+      </div>
+    </section>
+  </main>
+</div>
+
+<dialog id="confirm-dialog" class="dialog">
+  <form method="dialog">
+    <h3 id="confirm-title"></h3>
+    <p id="confirm-text" class="muted"></p>
+    <div class="dialog-actions">
+      <button class="btn ghost" value="cancel">Avbryt</button>
+      <button id="confirm-ok" class="btn primary" value="ok">Boka</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="password-dialog" class="dialog">
+  <form id="password-form">
+    <h3>Byt lösenord</h3>
+    <label class="field"><span>Nuvarande lösenord</span>
+      <input id="pw-current" type="password" autocomplete="current-password" required></label>
+    <label class="field"><span>Nytt lösenord (minst 6 tecken)</span>
+      <input id="pw-new" type="password" autocomplete="new-password" minlength="6" required></label>
+    <p id="pw-error" class="form-error" role="alert"></p>
+    <div class="dialog-actions">
+      <button class="btn ghost" type="button" id="pw-cancel">Avbryt</button>
+      <button class="btn primary" type="submit">Spara</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
