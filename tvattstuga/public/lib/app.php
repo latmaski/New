@@ -262,12 +262,29 @@ function tvatt_dispatch(TvattStore $store, array $config)
     }
 
     if (preg_match('#^/bookings/([\w-]+)$#', $route, $m)) {
-        if ($method !== 'DELETE') return tvatt_fail(405, 'Metoden stöds inte.');
+        if ($method !== 'DELETE' && $method !== 'POST') return tvatt_fail(405, 'Metoden stöds inte.');
         $index = null;
         foreach ($store->data['bookings'] as $i => $b) {
             if ($b['id'] === $m[1]) { $index = $i; break; }
         }
         $booking = $index === null ? null : $store->data['bookings'][$index];
+
+        // POST = flytta passet till ny dag/tid.
+        if ($method === 'POST') {
+            if ($isAdmin) return tvatt_fail(403, 'Hyresvärden kan inte boka pass.');
+            $body = tvatt_read_json();
+            if (!$body) return tvatt_fail(400, 'Ogiltig förfrågan.');
+            $date = $body['date'] ?? null;
+            $startHour = $body['startHour'] ?? null;
+            $error = tvatt_validate_move($store->data['bookings'], $booking, $me, $date, $startHour, $now, $config);
+            if ($error) return tvatt_fail(!$booking ? 404 : ((string) $booking['apartmentId'] !== $me ? 403 : 409), $error);
+            $store->data['bookings'][$index]['date'] = $date;
+            $store->data['bookings'][$index]['startHour'] = $startHour;
+            $store->data['bookings'][$index]['movedAt'] = gmdate('c', $ts);
+            $store->save();
+            return tvatt_send(200, $public($store->data['bookings'][$index]));
+        }
+
         $error = tvatt_validate_cancel($booking, $me, $now, $config);
         if ($error) return tvatt_fail($booking ? 403 : 404, $error);
         array_splice($store->data['bookings'], $index, 1);

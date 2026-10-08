@@ -121,3 +121,36 @@ test('skyddade filer går inte att hämta', async (t) => {
   for (const p of ['/config.php', '/lib/app.php']) assert.equal((await fetch(env.base + p)).status, 403);
   assert.equal((await fetch(env.base + '/')).status, 200);
 });
+
+test('flytta ett eget pass', async (t) => {
+  const env = await setup(); // onsdag 2026-10-07 12:30
+  t.after(env.close);
+  const a = await env.login('1');
+  const b = await env.login('2');
+  const p1 = (await a('POST', '/api/bookings', { date: '2026-10-08', startHour: 6 })).body;
+  const p2 = (await a('POST', '/api/bookings', { date: '2026-10-09', startHour: 6 })).body;
+  await b('POST', '/api/bookings', { date: '2026-10-10', startHour: 10 }); // 10–14
+  const move = (c, id, date, startHour) => c('POST', `/api/bookings/${id}`, { date, startHour });
+
+  // Flytt fungerar trots att båda passen är bokade, och id behålls.
+  const moved = await move(a, p1.id, '2026-10-10', 14);
+  assert.equal(moved.status, 200);
+  assert.deepEqual([moved.body.id, moved.body.date, moved.body.startHour, moved.body.endHour], [p1.id, '2026-10-10', 14, 18]);
+  // Att skjuta passet inom sin egen tid krockar inte med sig själv.
+  assert.equal((await move(a, p2.id, '2026-10-09', 8)).status, 200);
+
+  assert.match((await move(a, p1.id, '2026-10-10', 12)).body.error, /krockar/);
+  assert.match((await move(a, p1.id, '2026-10-10', 20)).body.error, /mellan 06:00 och 19:00/);
+  assert.match((await move(a, p1.id, '2026-10-07', 8)).body.error, /passerat/);
+  assert.equal((await move(b, p1.id, '2026-10-11', 6)).status, 403);
+  assert.equal((await move(a, 'finnsinte', '2026-10-11', 6)).status, 404);
+  assert.equal((await move(await env.login('admin'), p1.id, '2026-10-11', 6)).status, 403);
+
+  const list = (await a('GET', '/api/bookings?from=2026-10-05&to=2026-10-11')).body;
+  assert.equal(list.mine.length, 2);
+  assert.deepEqual(list.mine.map((x) => `${x.date} ${x.startHour}`), ['2026-10-09 8', '2026-10-10 14']);
+
+  // Ett pass som har börjat går inte att flytta.
+  env.setClock('2026-10-09T08:30:00+02:00');
+  assert.match((await move(a, p2.id, '2026-10-11', 6)).body.error, /redan börjat/);
+});

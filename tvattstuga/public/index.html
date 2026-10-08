@@ -91,11 +91,15 @@
         <button id="next-week" class="btn ghost icon" type="button" aria-label="Nästa vecka">›</button>
         <button id="today-btn" class="btn ghost small" type="button">Idag</button>
       </div>
+      <div id="move-banner" class="move-banner" role="status" hidden>
+        <span id="move-text"></span>
+        <button id="move-cancel" class="btn ghost small" type="button">Avbryt</button>
+      </div>
       <div id="day-strip" class="day-strip" role="tablist" aria-label="Välj dag"></div>
       <div id="grid" class="grid" aria-live="polite"></div>
       <div class="legend">
         <span><i class="sw sw-free"></i>Ledigt – klicka på starttid</span>
-        <span><i class="sw sw-mine"></i>Ditt pass</span>
+        <span><i class="sw sw-mine"></i>Ditt pass – dra för att flytta</span>
         <span><i class="sw sw-taken"></i>Bokat</span>
       </div>
     </section>

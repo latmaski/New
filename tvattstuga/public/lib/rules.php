@@ -90,3 +90,16 @@ function tvatt_validate_cancel(?array $booking, string $apartmentId, array $now,
     if (!tvatt_is_active($booking, $now, $config)) return 'Passet har redan passerat.';
     return null;
 }
+
+// Flytt av ett eget pass som inte har börjat. Det nya passet prövas mot
+// samma regler som en ny bokning, men utan det gamla passet.
+function tvatt_validate_move(array $bookings, ?array $booking, string $apartmentId, $date, $startHour, array $now, array $config): ?string
+{
+    if (!$booking) return 'Bokningen finns inte.';
+    if ((string) $booking['apartmentId'] !== $apartmentId) return 'Du kan bara ändra dina egna pass.';
+    if (tvatt_hour_index($booking['date'], $booking['startHour']) < tvatt_now_index($now)) {
+        return 'Passet har redan börjat och kan inte flyttas.';
+    }
+    $others = array_values(array_filter($bookings, function ($b) use ($booking) { return $b['id'] !== $booking['id']; }));
+    return tvatt_validate_booking($others, $apartmentId, $date, $startHour, $now, $config);
+}

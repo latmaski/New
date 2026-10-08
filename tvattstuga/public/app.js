@@ -14,6 +14,7 @@ const state = {
   now: null,
   bookings: [],
   mine: [],
+  moving: null, // eget pass som håller på att flyttas (via "Ändra")
 };
 
 // ---------- Datum (alltid som 'YYYY-MM-DD'-strängar i lokal tid) ----------
@@ -141,10 +142,14 @@ async function load() {
   state.now = data.now;
   state.bookings = data.bookings;
   state.mine = data.mine;
+  if (state.moving) state.moving = state.mine.find((b) => b.id === state.moving.id && isMovable(b)) || null;
   render();
 }
 
+const isMovable = (b) => b.mine && hourIndex(b.date, b.startHour) >= hourIndex(state.now.date, state.now.hour) + state.now.minute / 60;
+
 function render() {
+  renderMoveBanner();
   renderMine();
   renderHeader();
   renderGrid();
@@ -164,10 +169,14 @@ function renderMine() {
   for (const b of state.mine) {
     const { day, time } = describe(b);
     const li = document.createElement('li');
-    li.innerHTML = '<div class="when"><b></b><span></span></div><button class="btn ghost small danger" type="button">Avboka</button>';
+    li.innerHTML = '<div class="when"><b></b><span></span></div><div class="actions"><button class="btn ghost small" type="button" data-act="move">Ändra</button><button class="btn ghost small danger" type="button" data-act="cancel">Avboka</button></div>';
     li.querySelector('b').textContent = day;
     li.querySelector('span').textContent = time;
-    li.querySelector('button').addEventListener('click', () => cancelBooking(b));
+    if (state.moving && state.moving.id === b.id) li.classList.add('is-moving');
+    const moveBtn = li.querySelector('[data-act="move"]');
+    if (isMovable(b)) moveBtn.addEventListener('click', () => startMoveMode(b));
+    else moveBtn.remove();
+    li.querySelector('[data-act="cancel"]').addEventListener('click', () => cancelBooking(b));
     list.append(li);
   }
 }
@@ -196,15 +205,16 @@ function renderHeader() {
   }
 }
 
-function cellStatus(date, hour) {
+// ignoreId: passet som flyttas räknas varken som krock eller mot maxantalet.
+function cellStatus(date, hour, ignoreId = state.moving && state.moving.id) {
   const { openHour, closeHour, passHours, maxActiveBookings, bookingHorizonDays } = state.config;
   const start = hourIndex(date, hour);
-  if (start < hourIndex(state.now.date, state.now.hour)) return { kind: 'past' };
+  if (start < hourIndex(state.now.date, state.now.hour)) return { kind: 'past', reason: 'Tiden har redan passerat.' };
   if (date > addDays(state.now.date, bookingHorizonDays)) return { kind: 'blocked', reason: `Du kan boka högst ${bookingHorizonDays} dagar fram.` };
   if (hour + passHours > closeHour) return { kind: 'blocked', reason: `Sista starttid är ${pad(closeHour - passHours)}:00.` };
-  const clash = state.bookings.some((b) => b.date === date && b.startHour < hour + passHours && hour < b.endHour);
+  const clash = state.bookings.some((b) => b.id !== ignoreId && b.date === date && b.startHour < hour + passHours && hour < b.endHour);
   if (clash) return { kind: 'blocked', reason: 'Ett pass härifrån krockar med en annan bokning.' };
-  if (state.mine.length >= maxActiveBookings) return { kind: 'blocked', reason: `Du har redan ${maxActiveBookings} pass bokade.` };
+  if (!ignoreId && state.mine.length >= maxActiveBookings) return { kind: 'blocked', reason: `Du har redan ${maxActiveBookings} pass bokade.` };
   return { kind: 'start' };
 }
 
@@ -240,9 +250,12 @@ function renderGrid() {
       cell.type = 'button';
       cell.className = `cell ${status.kind}`;
       cell.dataset.label = `${pad(h)}–${pad(h + passHours)}`;
+      cell.dataset.date = date;
+      cell.dataset.hour = String(h);
       if (status.kind === 'start') {
-        cell.setAttribute('aria-label', `Boka ${fmt(date, { weekday: 'long', day: 'numeric', month: 'long' })} ${pad(h)}:00–${pad(h + passHours)}:00`);
-        cell.addEventListener('click', () => confirmBooking(date, h));
+        const verb = state.moving ? 'Flytta passet till' : 'Boka';
+        cell.setAttribute('aria-label', `${verb} ${fmt(date, { weekday: 'long', day: 'numeric', month: 'long' })} ${pad(h)}:00–${pad(h + passHours)}:00`);
+        cell.addEventListener('click', () => (state.moving ? confirmMove(state.moving, date, h) : confirmBooking(date, h)));
         cell.addEventListener('mouseenter', () => preview(cells, date, h, true));
         cell.addEventListener('mouseleave', () => preview(cells, date, h, false));
         cell.addEventListener('focus', () => preview(cells, date, h, true));
@@ -250,7 +263,7 @@ function renderGrid() {
       } else {
         cell.tabIndex = -1;
         cell.setAttribute('aria-hidden', 'true');
-        if (status.reason) {
+        if (status.reason && status.kind !== 'past') {
           cell.title = status.reason;
           cell.addEventListener('click', () => toast(status.reason, true));
         }
@@ -270,6 +283,12 @@ function renderGrid() {
     el.innerHTML = '<b></b><span></span>';
     el.querySelector('b').textContent = b.mine ? 'Ditt pass' : b.apartmentName;
     el.querySelector('span').textContent = `${pad(b.startHour)}–${pad(b.endHour)}`;
+    if (isMovable(b)) {
+      el.classList.add('movable');
+      if (state.moving && state.moving.id === b.id) el.classList.add('moving');
+      el.title = 'Dra för att flytta – eller klicka för att välja ny tid';
+      el.addEventListener('pointerdown', (e) => startDrag(e, b, el));
+    }
     place(el, col + 2, b.startHour - openHour + 2, b.endHour - b.startHour);
   }
 
@@ -293,6 +312,7 @@ function preview(cells, date, hour, on) {
 
 function confirmBooking(date, startHour) {
   const endHour = startHour + state.config.passHours;
+  $('confirm-ok').textContent = 'Boka';
   $('confirm-title').textContent = `Boka ${fmt(date, { weekday: 'long', day: 'numeric', month: 'long' })}?`;
   $('confirm-text').textContent = `Tvättstugan blir din kl ${pad(startHour)}:00–${pad(endHour)}:00.`;
   const dialog = $('confirm-dialog');
@@ -310,9 +330,121 @@ function confirmBooking(date, startHour) {
   }, { once: true });
 }
 
+// ---------- Flytta pass ----------
+function renderMoveBanner() {
+  const banner = $('move-banner');
+  banner.hidden = !state.moving;
+  if (!state.moving) return;
+  const { day, time } = describe(state.moving);
+  $('move-text').textContent = `Välj en ny starttid för ditt pass ${day} ${time}.`;
+}
+
+function startMoveMode(b) {
+  state.moving = b;
+  if (b.date >= state.weekStart && b.date <= addDays(state.weekStart, 6)) state.selectedDay = b.date;
+  render();
+  if (narrow.matches) $('move-banner').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function stopMoveMode() {
+  state.moving = null;
+  render();
+}
+
+$('move-cancel').addEventListener('click', stopMoveMode);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && state.moving && !document.querySelector('dialog[open]')) stopMoveMode();
+});
+
+function describeSlot(date, startHour) {
+  return describe({ date, startHour, endHour: startHour + state.config.passHours });
+}
+
+function confirmMove(b, date, startHour) {
+  const from = describe(b);
+  const to = describeSlot(date, startHour);
+  $('confirm-ok').textContent = 'Flytta';
+  $('confirm-title').textContent = 'Flytta ditt pass?';
+  $('confirm-text').textContent = `Från ${from.day} ${from.time} till ${to.day} ${to.time}.`;
+  const dialog = $('confirm-dialog');
+  dialog.returnValue = '';
+  dialog.showModal();
+  dialog.addEventListener('close', () => {
+    if (dialog.returnValue === 'ok') moveBooking(b, date, startHour);
+  }, { once: true });
+}
+
+async function moveBooking(b, date, startHour) {
+  try {
+    await api(`api/bookings/${b.id}`, { method: 'POST', body: { date, startHour } });
+    const to = describeSlot(date, startHour);
+    toast(`Passet är flyttat till ${to.day} ${to.time}.`);
+    state.moving = null;
+  } catch (err) {
+    toast(err.message, true);
+  }
+  load().catch((err) => toast(err.message, true));
+}
+
+const cellAt = (x, y) => document.elementsFromPoint(x, y).find((el) => el.classList && el.classList.contains('cell')) || null;
+
+// Dra ett eget pass till en ny tid. Ett klick utan att dra öppnar "Ändra".
+function startDrag(e, b, el) {
+  if (e.button !== 0) return;
+  const { openHour, closeHour, passHours } = state.config;
+  const startX = e.clientX;
+  const startY = e.clientY;
+  const grab = cellAt(e.clientX, e.clientY);
+  const grabOffset = grab ? Number(grab.dataset.hour) - b.startHour : 0;
+  const ghost = document.createElement('div');
+  let dragging = false;
+  let target = null;
+
+  const clear = () => ghost.remove();
+  const onMove = (ev) => {
+    if (!dragging) {
+      if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < 6) return;
+      dragging = true;
+      el.classList.add('dragging');
+      document.body.classList.add('is-dragging');
+    }
+    clear();
+    target = null;
+    const cell = cellAt(ev.clientX, ev.clientY);
+    if (!cell) return;
+    const date = cell.dataset.date;
+    const start = Math.max(openHour, Math.min(closeHour - passHours, Number(cell.dataset.hour) - grabOffset));
+    const status = cellStatus(date, start, b.id);
+    const ok = status.kind === 'start';
+    // Markering ovanpå allt annat i rutnätet, så den syns även över andras pass.
+    ghost.className = `drop-ghost ${ok ? 'ok' : 'bad'}`;
+    ghost.textContent = ok ? `${pad(start)}–${pad(start + passHours)}` : 'Upptaget';
+    ghost.style.gridColumn = cell.style.gridColumn;
+    ghost.style.gridRow = `${start - openHour + 2} / span ${passHours}`;
+    $('grid').append(ghost);
+    target = { date, startHour: start, ok, reason: status.reason };
+  };
+  const onUp = () => {
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    window.removeEventListener('pointercancel', onUp);
+    el.classList.remove('dragging');
+    document.body.classList.remove('is-dragging');
+    clear();
+    if (!dragging) return startMoveMode(b);
+    if (!target || (target.date === b.date && target.startHour === b.startHour)) return;
+    if (!target.ok) return toast(target.reason || 'Den tiden går inte att boka.', true);
+    moveBooking(b, target.date, target.startHour);
+  };
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+  window.addEventListener('pointercancel', onUp);
+}
+
 async function cancelBooking(b) {
   const { day, time } = describe(b);
   if (!window.confirm(`Avboka ditt pass ${day} ${time}?`)) return;
+  if (state.moving && state.moving.id === b.id) state.moving = null;
   try {
     await api(`api/bookings/${b.id}`, { method: 'DELETE' });
     toast('Passet är avbokat.');

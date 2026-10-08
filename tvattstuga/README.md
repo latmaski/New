@@ -8,6 +8,7 @@ Bokningsverktyg för tvättstugan. Det är gjort för att köras på ett vanligt
 - Varje lägenhet (**5 st**) har en egen inloggning.
 - Man får ha **max 2 pass** bokade åt gången. Ett pass räknas tills det är slut, så när ett pass passerat kan man boka ett nytt.
 - Pass får inte överlappa. Man kan boka upp till 28 dagar fram och avboka sina egna pass.
+- Man kan **flytta** ett eget pass som inte har börjat. Antingen drar man passet i kalendern, eller så klickar man på det (eller på *Ändra* under "Mina pass") och väljer en ny starttid. Det fungerar även när båda passen är bokade.
 
 Reglerna och lägenheternas namn ställs in i `public/config.php`.
 
