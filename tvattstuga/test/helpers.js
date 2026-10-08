@@ -37,6 +37,7 @@ async function setup(localTime = '2026-10-07T12:30:00+02:00') {
   const passwords = {};
   const text = fs.readFileSync(path.join(dir, 'data', 'losenord.txt'), 'utf8');
   for (const m of text.matchAll(/^Lägenhet (\d+): (\S+)$/gm)) passwords[m[1]] = m[2];
+  passwords.admin = /^Hyresvärd: (\S+)$/m.exec(text)[1];
 
   const client = () => {
     let cookie = '';

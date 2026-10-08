@@ -47,10 +47,11 @@ function tvatt_sync_users(TvattStore $store, array $config): void
     if (is_file($resetFile)) {
         $words = preg_split('/[\s,]+/', (string) file_get_contents($resetFile), -1, PREG_SPLIT_NO_EMPTY);
         $reset = in_array('alla', $words, true) ? array_column($config['apartments'], 'id') : $words;
+        $reset = array_map('strtolower', $reset);
         @unlink($resetFile);
     }
     $lines = [];
-    foreach ($config['apartments'] as $apt) {
+    foreach (array_merge($config['apartments'], [$config['admin']]) as $apt) {
         $existing = $store->data['users'][$apt['id']] ?? null;
         if ($existing && !in_array($apt['id'], $reset, true)) continue;
         $password = tvatt_generate_password();
@@ -61,6 +62,50 @@ function tvatt_sync_users(TvattStore $store, array $config): void
         $store->save();
         $store->logPasswords($lines);
     }
+}
+
+// Ger en lägenhet ett nytt slumpat lösenord och loggar ut den överallt.
+// Vid flytt kan även lägenhetens kommande pass avbokas.
+function tvatt_admin_reset(TvattStore $store, string $apartmentId, bool $cancelUpcoming, array $now, array $config): array
+{
+    $password = tvatt_generate_password();
+    $version = (int) ($store->data['users'][$apartmentId]['version'] ?? -1) + 1;
+    $store->data['users'][$apartmentId] = tvatt_new_user($password, $version);
+    $cancelled = 0;
+    if ($cancelUpcoming) {
+        $keep = [];
+        foreach ($store->data['bookings'] as $b) {
+            $isUpcoming = (string) $b['apartmentId'] === $apartmentId
+                && tvatt_hour_index($b['date'], $b['startHour']) >= tvatt_now_index($now);
+            if ($isUpcoming) $cancelled++;
+            else $keep[] = $b;
+        }
+        $store->data['bookings'] = $keep;
+    }
+    $store->save();
+    return ['password' => $password, 'cancelled' => $cancelled];
+}
+
+// Antal bokade pass per lägenhet och månad, plus kommande pass.
+function tvatt_admin_stats(array $bookings, array $now, array $config): array
+{
+    $rows = [];
+    foreach ($config['apartments'] as $apt) {
+        $rows[$apt['id']] = ['id' => $apt['id'], 'name' => $apt['name'], 'months' => [], 'total' => 0, 'upcoming' => 0];
+    }
+    foreach ($bookings as $b) {
+        $id = (string) $b['apartmentId'];
+        if (!isset($rows[$id])) continue;
+        $month = substr($b['date'], 0, 7);
+        $rows[$id]['months'][$month] = ($rows[$id]['months'][$month] ?? 0) + 1;
+        $rows[$id]['total']++;
+        if (tvatt_is_active($b, $now, $config)) $rows[$id]['upcoming']++;
+    }
+    foreach ($rows as &$row) {
+        ksort($row['months']);
+        $row['months'] = (object) $row['months'];
+    }
+    return ['now' => $now, 'passHours' => $config['passHours'], 'apartments' => array_values($rows)];
 }
 
 function tvatt_sort_bookings(array $bookings): array
@@ -97,6 +142,7 @@ function tvatt_dispatch(TvattStore $store, array $config)
     $route = $pos === false ? '' : rtrim(substr($path, $pos + 4), '/');
 
     $names = array_column($config['apartments'], 'name', 'id');
+    $adminId = $config['admin']['id'];
     $me = tvatt_read_session($_COOKIE['sess'] ?? null, $store->data['secret'], $store->data['users'], $ts);
     $public = function (array $b) use ($names, $config, &$me) {
         return [
@@ -128,7 +174,7 @@ function tvatt_dispatch(TvattStore $store, array $config)
         }
         $body = tvatt_read_json();
         $id = isset($body['apartmentId']) ? (string) $body['apartmentId'] : '';
-        $user = isset($names[$id]) ? ($store->data['users'][$id] ?? null) : null;
+        $user = isset($names[$id]) || $id === $adminId ? ($store->data['users'][$id] ?? null) : null;
         if (!tvatt_verify_password($body['password'] ?? null, $user)) {
             $failures[$ip][] = $ts;
             $store->data['loginFailures'] = $failures;
@@ -139,19 +185,37 @@ function tvatt_dispatch(TvattStore $store, array $config)
         $store->data['loginFailures'] = $failures;
         $store->save();
         tvatt_set_cookie(tvatt_session_token($store->data['secret'], $id, (int) ($user['version'] ?? 0), $ts), $ts + TVATT_SESSION_DAYS * 86400);
-        return tvatt_send(200, ['apartmentId' => $id]);
+        return tvatt_send(200, ['apartmentId' => $id, 'isAdmin' => $id === $adminId]);
     }
     if ($method === 'POST' && $route === '/logout') {
         tvatt_set_cookie('', 1);
         return tvatt_send(200, ['ok' => true]);
     }
 
-    $known = ['/me', '/password', '/bookings'];
+    $known = ['/me', '/password', '/bookings', '/admin/stats', '/admin/reset-password'];
     if (!in_array($route, $known, true) && !preg_match('#^/bookings/[\w-]+$#', $route)) return tvatt_fail(404, 'Hittades inte.');
     if (!$me) return tvatt_fail(401, 'Du är inte inloggad.');
+    $isAdmin = $me === $adminId;
 
     if ($method === 'GET' && $route === '/me') {
-        return tvatt_send(200, ['apartmentId' => $me, 'apartmentName' => $names[$me]]);
+        return tvatt_send(200, [
+            'apartmentId' => $me, 'apartmentName' => $isAdmin ? $config['admin']['name'] : $names[$me], 'isAdmin' => $isAdmin,
+        ]);
+    }
+
+    if (strpos($route, '/admin/') === 0) {
+        if (!$isAdmin) return tvatt_fail(403, 'Endast för hyresvärden.');
+        if ($method === 'GET' && $route === '/admin/stats') {
+            return tvatt_send(200, tvatt_admin_stats($store->data['bookings'], $now, $config));
+        }
+        if ($method === 'POST' && $route === '/admin/reset-password') {
+            $body = tvatt_read_json();
+            $id = isset($body['apartmentId']) ? (string) $body['apartmentId'] : '';
+            if (!isset($names[$id])) return tvatt_fail(400, 'Okänd lägenhet.');
+            $result = tvatt_admin_reset($store, $id, !empty($body['cancelUpcoming']), $now, $config);
+            return tvatt_send(200, ['apartmentName' => $names[$id]] + $result);
+        }
+        return tvatt_fail(405, 'Metoden stöds inte.');
     }
 
     if ($method === 'POST' && $route === '/password') {
@@ -181,6 +245,7 @@ function tvatt_dispatch(TvattStore $store, array $config)
     }
 
     if ($method === 'POST' && $route === '/bookings') {
+        if ($isAdmin) return tvatt_fail(403, 'Hyresvärden kan inte boka pass.');
         $body = tvatt_read_json();
         if (!$body) return tvatt_fail(400, 'Ogiltig förfrågan.');
         $date = $body['date'] ?? null;

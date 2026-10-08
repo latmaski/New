@@ -1,5 +1,5 @@
 <?php
-// Användning (via SSH på servern): php set-password.php <lägenhets-id> [nytt lösenord]
+// Användning (via SSH på servern): php set-password.php <lägenhets-id|admin> [nytt lösenord]
 // Utan lösenord slumpas ett. Loggar ut lägenheten på alla enheter.
 // Utan SSH: lägg en fil "aterstall.txt" med lägenhets-id i datamappen i stället.
 declare(strict_types=1);
@@ -12,6 +12,7 @@ $config = require $root . '/config.php';
 
 $id = $argv[1] ?? '';
 $names = array_column($config['apartments'], 'name', 'id');
+$names[$config['admin']['id']] = $config['admin']['name'];
 if (!isset($names[$id])) {
     fwrite(STDERR, 'Okänd lägenhet. Giltiga id: ' . implode(', ', array_keys($names)) . "\n");
     exit(1);

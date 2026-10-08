@@ -15,6 +15,8 @@ return [
         ['id' => '4', 'name' => 'Lägenhet 4'],
         ['id' => '5', 'name' => 'Lägenhet 5'],
     ],
+    // Hyresvärdens konto: ser statistik och kan ge lägenheter nya lösenord.
+    'admin' => ['id' => 'admin', 'name' => 'Hyresvärd'],
     // Mapp för bokningar och lösenord. null = mappen "tvatt-data" bredvid
     // public_html (utanför webbroten), eller "data" här om det inte går.
     'dataDir' => null,

@@ -10,7 +10,7 @@ const { setup } = require('./helpers');
 test('fem inloggningar skapas och lösenord krävs', async (t) => {
   const env = await setup();
   t.after(env.close);
-  assert.equal(Object.keys(env.passwords).length, 5);
+  assert.deepEqual(Object.keys(env.passwords).sort(), ['1', '2', '3', '4', '5', 'admin']);
   const c = env.client();
   assert.equal((await c('GET', '/api/bookings')).status, 401);
   assert.equal((await c('POST', '/api/login', { apartmentId: '1', password: 'fel' })).status, 401);
@@ -18,7 +18,7 @@ test('fem inloggningar skapas och lösenord krävs', async (t) => {
   const ok = await c('POST', '/api/login', { apartmentId: '1', password: env.passwords['1'] });
   assert.equal(ok.status, 200);
   assert.match(ok.headers.get('set-cookie'), /HttpOnly/i);
-  assert.deepEqual((await c('GET', '/api/me')).body, { apartmentId: '1', apartmentName: 'Lägenhet 1' });
+  assert.deepEqual((await c('GET', '/api/me')).body, { apartmentId: '1', apartmentName: 'Lägenhet 1', isAdmin: false });
   await c('POST', '/api/logout');
   assert.equal((await c('GET', '/api/me')).status, 401);
 });

@@ -14,10 +14,11 @@
     <p class="eyebrow">Tvättstugan</p>
     <h1 class="building-name">Stora Pukevägen 12</h1>
     <form id="login-form" novalidate>
-      <fieldset>
+      <fieldset id="apt-fieldset">
         <legend>Välj din lägenhet</legend>
         <div id="apt-picker" class="apt-picker"></div>
       </fieldset>
+      <p id="admin-login-label" class="admin-login-label" hidden>Inloggning för hyresvärden</p>
       <label class="field">
         <span>Lösenord</span>
         <input id="login-password" type="password" autocomplete="current-password" required>
@@ -25,6 +26,7 @@
       <p id="login-error" class="form-error" role="alert"></p>
       <button class="btn primary wide" type="submit">Logga in</button>
     </form>
+    <button id="toggle-admin" class="link-btn" type="button">Hyresvärd? Logga in här</button>
   </div>
 </main>
 
@@ -41,7 +43,35 @@
     </div>
   </header>
 
-  <main class="layout">
+  <main id="admin-view" class="admin-layout" hidden>
+    <section class="panel" aria-labelledby="stats-title">
+      <div class="panel-head">
+        <div>
+          <h2 id="stats-title">Bokade pass per lägenhet</h2>
+          <p id="stats-sub" class="muted small"></p>
+        </div>
+        <div id="period-chips" class="chips" role="radiogroup" aria-label="Period"></div>
+      </div>
+      <div id="stats-bars" class="bars"></div>
+      <div class="table-wrap">
+        <table class="stats-table">
+          <thead>
+            <tr><th scope="col">Lägenhet</th><th scope="col">Denna månad</th><th scope="col">Förra månaden</th><th scope="col">I år</th><th scope="col">Totalt</th><th scope="col">Kommande</th></tr>
+          </thead>
+          <tbody id="stats-body"></tbody>
+          <tfoot id="stats-foot"></tfoot>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="pw-admin-title">
+      <h2 id="pw-admin-title">Lösenord</h2>
+      <p class="muted small">Ge en lägenhet ett nytt lösenord om någon har glömt sitt eller när nya boende flyttar in. Lägenheten loggas då ut på alla enheter.</p>
+      <ul id="pw-admin-list" class="pw-admin-list"></ul>
+    </section>
+  </main>
+
+  <main id="resident-view" class="layout">
     <section class="mine" aria-labelledby="mine-title">
       <div class="mine-head">
         <h2 id="mine-title">Mina pass</h2>
@@ -95,6 +125,28 @@
       <button class="btn ghost" type="button" id="pw-cancel">Avbryt</button>
       <button class="btn primary" type="submit">Spara</button>
     </div>
+  </form>
+</dialog>
+
+<dialog id="reset-dialog" class="dialog">
+  <form method="dialog">
+    <h3 id="reset-title"></h3>
+    <p class="muted">Ett nytt lösenord skapas och det gamla slutar gälla direkt.</p>
+    <label class="check"><input id="reset-cancel" type="checkbox"> Nya boende flyttar in – avboka även lägenhetens kommande pass</label>
+    <div class="dialog-actions">
+      <button class="btn ghost" value="cancel">Avbryt</button>
+      <button class="btn primary" value="ok">Skapa nytt lösenord</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="reset-result" class="dialog">
+  <form method="dialog">
+    <h3 id="reset-result-title"></h3>
+    <p class="muted">Ge lösenordet till de boende. Det visas bara nu. De kan byta det själva efter inloggning.</p>
+    <div class="new-password"><code id="reset-password"></code><button id="copy-password" class="btn ghost small" type="button">Kopiera</button></div>
+    <p id="reset-cancelled" class="muted small"></p>
+    <div class="dialog-actions"><button class="btn primary" value="ok">Klar</button></div>
   </form>
 </dialog>
 

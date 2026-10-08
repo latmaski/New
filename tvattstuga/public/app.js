@@ -6,6 +6,9 @@ const narrow = window.matchMedia('(max-width: 860px)');
 const state = {
   config: null,
   me: null,
+  adminLogin: false,
+  stats: null,
+  period: 'month',
   weekStart: null, // måndag, 'YYYY-MM-DD'
   selectedDay: null, // används i mobilvyn
   now: null,
@@ -74,17 +77,28 @@ function renderAptPicker() {
 function localStorageGet(key) { try { return localStorage.getItem(key); } catch { return null; } }
 function localStorageSet(key, value) { try { localStorage.setItem(key, value); } catch { /* privat läge */ } }
 
+function setAdminLogin(on) {
+  state.adminLogin = on;
+  $('apt-fieldset').hidden = on;
+  $('admin-login-label').hidden = !on;
+  $('toggle-admin').textContent = on ? '← Tillbaka till lägenheterna' : 'Hyresvärd? Logga in här';
+  $('login-error').textContent = '';
+}
+
 function showLogin() {
   state.me = null;
   $('app').hidden = true;
   $('login').hidden = false;
   renderAptPicker();
+  setAdminLogin(false);
   $('login-password').value = '';
 }
 
+$('toggle-admin').addEventListener('click', () => { setAdminLogin(!state.adminLogin); $('login-password').focus(); });
+
 $('login-form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const apartmentId = new FormData(e.target).get('apartment');
+  const apartmentId = state.adminLogin ? 'admin' : new FormData(e.target).get('apartment');
   const password = $('login-password').value;
   $('login-error').textContent = '';
   if (!apartmentId) { $('login-error').textContent = 'Välj din lägenhet.'; return; }
@@ -321,11 +335,151 @@ $('next-week').addEventListener('click', () => goToWeek(addDays(state.weekStart,
 $('today-btn').addEventListener('click', () => { state.selectedDay = state.now.date; goToWeek(mondayOf(state.now.date)); });
 narrow.addEventListener('change', () => state.now && renderGrid());
 
+// ---------- Hyresvärd ----------
+const PERIODS = [
+  ['month', 'Denna månad'], ['last', 'Förra månaden'], ['year', 'I år'], ['12m', '12 mån'], ['all', 'Totalt'],
+];
+const monthKey = (date, back = 0) => {
+  const [y, m] = date.split('-').map(Number);
+  const d = new Date(Date.UTC(y, m - 1 - back, 1));
+  return d.toISOString().slice(0, 7);
+};
+const monthName = (key) => fmt(`${key}-01`, { month: 'long', year: 'numeric' });
+
+function periodCount(apt, period) {
+  const today = state.stats.now.date;
+  const months = apt.months;
+  const sum = (keys) => keys.reduce((n, k) => n + (months[k] || 0), 0);
+  if (period === 'month') return sum([monthKey(today)]);
+  if (period === 'last') return sum([monthKey(today, 1)]);
+  if (period === 'year') return sum(Object.keys(months).filter((k) => k.startsWith(today.slice(0, 4))));
+  if (period === '12m') return sum(Array.from({ length: 12 }, (_, i) => monthKey(today, i)));
+  return apt.total;
+}
+
+function periodLabel(period) {
+  const today = state.stats.now.date;
+  if (period === 'month') return monthName(monthKey(today));
+  if (period === 'last') return monthName(monthKey(today, 1));
+  if (period === 'year') return `år ${today.slice(0, 4)}`;
+  if (period === '12m') return `${monthName(monthKey(today, 11))} – ${monthName(monthKey(today))}`;
+  return 'sedan start';
+}
+
+async function loadStats() {
+  state.stats = await api('api/admin/stats');
+  renderStats();
+}
+
+function renderStats() {
+  const { apartments, passHours } = state.stats;
+  const chips = $('period-chips');
+  chips.innerHTML = '';
+  for (const [key, label] of PERIODS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', String(key === state.period));
+    b.textContent = label;
+    b.addEventListener('click', () => { state.period = key; renderStats(); });
+    chips.append(b);
+  }
+
+  const counts = apartments.map((a) => periodCount(a, state.period));
+  const total = counts.reduce((a, b) => a + b, 0);
+  const max = Math.max(1, ...counts);
+  $('stats-sub').textContent = `${total} pass (${total * passHours} timmar) totalt, ${periodLabel(state.period)}.`;
+
+  const bars = $('stats-bars');
+  bars.innerHTML = '';
+  apartments.forEach((apt, i) => {
+    const n = counts[i];
+    const row = document.createElement('div');
+    row.className = 'bar-row';
+    row.innerHTML = '<span class="label"></span><div class="bar-track"><div class="bar"></div></div><span class="value"></span><span class="bar-tip"></span>';
+    row.querySelector('.label').textContent = apt.name;
+    row.querySelector('.bar').style.width = `${(n / max) * 100}%`;
+    row.querySelector('.value').innerHTML = `${n} <span>pass</span>`;
+    const share = total ? Math.round((n / total) * 100) : 0;
+    row.querySelector('.bar-tip').textContent = `${apt.name}: ${n} pass · ${n * passHours} h · ${share} % av alla`;
+    row.setAttribute('aria-label', row.querySelector('.bar-tip').textContent);
+    bars.append(row);
+  });
+
+  const body = $('stats-body');
+  body.innerHTML = '';
+  const cols = ['month', 'last', 'year', 'all'];
+  const totals = [0, 0, 0, 0, 0];
+  for (const apt of apartments) {
+    const values = [...cols.map((c) => periodCount(apt, c)), apt.upcoming];
+    values.forEach((v, i) => { totals[i] += v; });
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><span class="full"></span><span class="short"></span></td>${values.map((v) => `<td>${v}</td>`).join('')}`;
+    tr.querySelector('.full').textContent = apt.name;
+    tr.querySelector('.short').textContent = apt.name.replace(/^Lägenhet\s*/i, 'Lgh ');
+    body.append(tr);
+  }
+  $('stats-foot').innerHTML = `<tr><td>Summa</td>${totals.map((v) => `<td>${v}</td>`).join('')}</tr>`;
+
+  const list = $('pw-admin-list');
+  list.innerHTML = '';
+  for (const apt of apartments) {
+    const li = document.createElement('li');
+    li.innerHTML = '<span></span><button class="btn ghost small" type="button">Nytt lösenord</button>';
+    li.firstChild.textContent = apt.name;
+    li.querySelector('button').addEventListener('click', () => resetPassword(apt));
+    list.append(li);
+  }
+}
+
+function resetPassword(apt) {
+  const dialog = $('reset-dialog');
+  $('reset-title').textContent = `Nytt lösenord för ${apt.name}?`;
+  $('reset-cancel').checked = false;
+  dialog.returnValue = '';
+  dialog.showModal();
+  dialog.addEventListener('close', async () => {
+    if (dialog.returnValue !== 'ok') return;
+    try {
+      const res = await api('api/admin/reset-password', { method: 'POST', body: { apartmentId: apt.id, cancelUpcoming: $('reset-cancel').checked } });
+      $('reset-result-title').textContent = `Nytt lösenord för ${res.apartmentName}`;
+      $('reset-password').textContent = res.password;
+      $('reset-cancelled').textContent = res.cancelled ? `${res.cancelled} kommande pass avbokades.` : '';
+      $('reset-result').showModal();
+      loadStats().catch(() => {});
+    } catch (err) {
+      toast(err.message, true);
+    }
+  }, { once: true });
+}
+
+$('copy-password').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText($('reset-password').textContent);
+    toast('Lösenordet är kopierat.');
+  } catch {
+    toast('Kunde inte kopiera – skriv av lösenordet.', true);
+  }
+});
+
+function refresh() {
+  if (!state.me || document.hidden) return;
+  (state.me.isAdmin ? loadStats() : load()).catch(() => {});
+}
+
 // ---------- Start ----------
 async function startApp() {
   const me = await api('api/me');
   state.me = me;
   $('me-name').textContent = me.apartmentName;
+  $('admin-view').hidden = !me.isAdmin;
+  $('resident-view').hidden = me.isAdmin;
+  if (me.isAdmin) {
+    await loadStats();
+    $('login').hidden = true;
+    $('app').hidden = false;
+    return;
+  }
   const first = await api('api/bookings');
   state.now = first.now;
   // Efter sista starttiden finns inget kvar att boka idag – visa imorgon.
@@ -348,8 +502,8 @@ async function init() {
   } catch {
     showLogin();
   }
-  setInterval(() => { if (state.me && !document.hidden) load().catch(() => {}); }, 60000);
-  document.addEventListener('visibilitychange', () => { if (state.me && !document.hidden) load().catch(() => {}); });
+  setInterval(refresh, 60000);
+  document.addEventListener('visibilitychange', refresh);
 }
 
 init();
