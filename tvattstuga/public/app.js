@@ -41,7 +41,7 @@ async function api(path, options = {}) {
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
-  if (res.status === 401 && path !== '/api/login') { showLogin(); throw new Error(data.error || 'Du är inte inloggad.'); }
+  if (res.status === 401 && path !== 'api/login') { showLogin(); throw new Error(data.error || 'Du är inte inloggad.'); }
   if (!res.ok) throw new Error(data.error || 'Något gick fel.');
   return data;
 }
@@ -90,7 +90,7 @@ $('login-form').addEventListener('submit', async (e) => {
   if (!apartmentId) { $('login-error').textContent = 'Välj din lägenhet.'; return; }
   if (!password) { $('login-error').textContent = 'Skriv ditt lösenord.'; return; }
   try {
-    await api('/api/login', { method: 'POST', body: { apartmentId, password } });
+    await api('api/login', { method: 'POST', body: { apartmentId, password } });
     localStorageSet('lastApartment', apartmentId);
     await startApp();
   } catch (err) {
@@ -99,7 +99,7 @@ $('login-form').addEventListener('submit', async (e) => {
 });
 
 $('btn-logout').addEventListener('click', async () => {
-  await api('/api/logout', { method: 'POST' }).catch(() => {});
+  await api('api/logout', { method: 'POST' }).catch(() => {});
   showLogin();
 });
 
@@ -113,7 +113,7 @@ $('pw-cancel').addEventListener('click', () => $('password-dialog').close());
 $('password-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   try {
-    await api('/api/password', { method: 'POST', body: { currentPassword: $('pw-current').value, newPassword: $('pw-new').value } });
+    await api('api/password', { method: 'POST', body: { currentPassword: $('pw-current').value, newPassword: $('pw-new').value } });
     $('password-dialog').close();
     toast('Lösenordet är bytt.');
   } catch (err) {
@@ -123,7 +123,7 @@ $('password-form').addEventListener('submit', async (e) => {
 
 // ---------- Kalender ----------
 async function load() {
-  const data = await api(`/api/bookings?from=${state.weekStart}&to=${addDays(state.weekStart, 6)}`);
+  const data = await api(`api/bookings?from=${state.weekStart}&to=${addDays(state.weekStart, 6)}`);
   state.now = data.now;
   state.bookings = data.bookings;
   state.mine = data.mine;
@@ -287,7 +287,7 @@ function confirmBooking(date, startHour) {
   dialog.addEventListener('close', async () => {
     if (dialog.returnValue !== 'ok') return;
     try {
-      await api('/api/bookings', { method: 'POST', body: { date, startHour } });
+      await api('api/bookings', { method: 'POST', body: { date, startHour } });
       toast(`Bokat ${pad(startHour)}:00–${pad(endHour)}:00.`);
     } catch (err) {
       toast(err.message, true);
@@ -300,7 +300,7 @@ async function cancelBooking(b) {
   const { day, time } = describe(b);
   if (!window.confirm(`Avboka ditt pass ${day} ${time}?`)) return;
   try {
-    await api(`/api/bookings/${b.id}`, { method: 'DELETE' });
+    await api(`api/bookings/${b.id}`, { method: 'DELETE' });
     toast('Passet är avbokat.');
   } catch (err) {
     toast(err.message, true);
@@ -323,10 +323,10 @@ narrow.addEventListener('change', () => state.now && renderGrid());
 
 // ---------- Start ----------
 async function startApp() {
-  const me = await api('/api/me');
+  const me = await api('api/me');
   state.me = me;
   $('me-name').textContent = me.apartmentName;
-  const first = await api('/api/bookings');
+  const first = await api('api/bookings');
   state.now = first.now;
   // Efter sista starttiden finns inget kvar att boka idag – visa imorgon.
   const lastStart = state.config.closeHour - state.config.passHours;
@@ -339,7 +339,7 @@ async function startApp() {
 }
 
 async function init() {
-  state.config = await api('/api/config');
+  state.config = await api('api/config');
   const { openHour, closeHour, passHours, maxActiveBookings, bookingHorizonDays } = state.config;
   $('rules-text').textContent = `Pass om ${passHours} timmar mellan ${pad(openHour)}:00 och ${pad(closeHour)}:00, alla dagar. `
     + `Max ${maxActiveBookings} bokade pass åt gången, upp till ${bookingHorizonDays} dagar fram.`;

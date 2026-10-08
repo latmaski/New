@@ -1,0 +1,19 @@
+Options -Indexes
+DirectoryIndex index.html
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # Tvinga HTTPS (kan också slås på i Simplys kontrollpanel).
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+  # Alla API-anrop går till api.php.
+  RewriteRule ^api/ api.php [L,QSA]
+  # Ingen direkt åtkomst till inställningar, bibliotek eller data.
+  RewriteRule ^(config\.php|lib/|data/) - [F,L]
+</IfModule>
+
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+  Header set Referrer-Policy "same-origin"
+</IfModule>
