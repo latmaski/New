@@ -7,7 +7,7 @@ Bokningsverktyg för tvättstugan. Det är gjort för att köras på ett vanligt
 - Ett pass är **4 timmar** och kan starta på valfri hel timme mellan **06:00 och 19:00**, så att det är klart senast **23:00**. Det gäller alla dagar.
 - Varje lägenhet (**5 st**) har en egen inloggning.
 - Man får ha **max 2 pass** bokade åt gången. Ett pass räknas tills det är slut, så när ett pass passerat kan man boka ett nytt.
-- **Kortare pass:** om ett helt pass inte får plats, för att någon annans pass börjar eller för att tvättstugan stänger 23:00, kan man boka den tid som finns kvar, minst 1 timme. Sådana tider är gulmarkerade i kalendern med antal timmar, och man får en varning om hur långt passet blir innan man bekräftar. Ett kort pass räknas som ett av de två passen.
+- **Kortare pass:** om ett helt pass inte får plats, för att någon annans pass börjar eller för att tvättstugan stänger 23:00, kan man boka den tid som finns kvar, minst 1 timme. Det gäller bara luckor där ett helt pass inte får plats. Finns 4 timmar lediga bokar man ett helt pass i stället, så att schemat inte splittras. Sådana tider är gulmarkerade i kalendern med antal timmar, och man får en varning om hur långt passet blir innan man bekräftar. Ett kort pass räknas som ett av de två passen.
 - Pass får inte överlappa. Man kan boka upp till 28 dagar fram och avboka sina egna pass.
 - Man kan **flytta** ett eget pass som inte har börjat. Antingen drar man passet i kalendern, eller så klickar man på det (eller på *Ändra* under "Mina pass") och väljer en ny starttid. Det fungerar även när båda passen är bokade.
 

@@ -141,10 +141,11 @@ test('flytta ett eget pass', async (t) => {
 
   assert.match((await move(a, p1.id, '2026-10-10', 12)).body.error, /krockar/);
   assert.match((await move(a, p1.id, '2026-10-10', 23)).body.error, /mellan 06:00 och 22:00/);
-  // Flytt till en kortare lucka: kräver bekräftad längd och sparar den.
-  assert.match((await move(a, p1.id, '2026-10-10', 8)).body.error, /bara 2 h ledigt/);
-  const shortMove = await a('POST', `/api/bookings/${p1.id}`, { date: '2026-10-10', startHour: 8, hours: 2 });
-  assert.deepEqual([shortMove.body.startHour, shortMove.body.endHour], [8, 10]);
+  // Flytt till en kortare lucka (22–23): kräver bekräftad längd och sparar den.
+  assert.equal((await b('POST', '/api/bookings', { date: '2026-10-10', startHour: 18 })).status, 201);
+  assert.match((await move(a, p1.id, '2026-10-10', 22)).body.error, /bara 1 h ledigt/);
+  const shortMove = await a('POST', `/api/bookings/${p1.id}`, { date: '2026-10-10', startHour: 22, hours: 1 });
+  assert.deepEqual([shortMove.body.startHour, shortMove.body.endHour], [22, 23]);
   // ...och tillbaka till ett helt pass.
   assert.equal((await move(a, p1.id, '2026-10-10', 14)).body.endHour, 18);
   assert.match((await move(a, p1.id, '2026-10-07', 8)).body.error, /passerat/);

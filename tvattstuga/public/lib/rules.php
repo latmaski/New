@@ -72,6 +72,20 @@ function tvatt_pad(int $h): string
     return str_pad((string) $h, 2, '0', STR_PAD_LEFT);
 }
 
+// Var den lediga luckan som startHour ligger i börjar: slutet på föregående
+// pass, öppningstiden eller – idag – innevarande timme.
+function tvatt_gap_start(array $bookings, string $date, int $startHour, array $now, array $config): int
+{
+    $start = $config['openHour'];
+    foreach ($bookings as $b) {
+        if ($b['date'] !== $date) continue;
+        $end = (int) $b['startHour'] + tvatt_booking_hours($b, $config);
+        if ($end <= $startHour && $end > $start) $start = $end;
+    }
+    if ($date === $now['date']) $start = max($start, $now['hour']);
+    return $start;
+}
+
 // Prövar en bokning. Returnerar ['error' => ?string, 'hours' => int].
 // Får ett helt pass inte plats (annat pass eller stängning i vägen) blir det
 // ett kortare pass, men bara om klienten skickat just det antalet timmar –
@@ -102,6 +116,14 @@ function tvatt_check_booking(array $bookings, string $apartmentId, $date, $start
     if ($available <= 0) return $fail('Tiden krockar med en annan bokning.');
     if ($available < $min) return $fail("Det finns bara $available h ledigt här, minst $min h krävs.");
     $allowed = min($pass, $available);
+    // Korta pass bara i luckor där ett helt pass inte får plats, så att
+    // schemat inte splittras när ett helt pass hade gått att boka.
+    if ($allowed < $pass) {
+        $gapStart = tvatt_gap_start($bookings, $date, $startHour, $now, $config);
+        if ($startHour + $available - $gapStart >= $pass) {
+            return $fail('Här får ett helt pass plats. Boka ett helt pass, till exempel från ' . tvatt_pad($startHour + $available - $pass) . ':00.');
+        }
+    }
     if ($hours === null && $allowed < $pass) {
         return $fail("Här finns bara $allowed h ledigt. Bekräfta att du vill boka ett kortare pass.");
     }
