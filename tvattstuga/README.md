@@ -7,10 +7,11 @@ Bokningsverktyg för tvättstugan. Det är gjort för att köras på ett vanligt
 - Ett pass är **4 timmar** och kan starta på valfri hel timme mellan **06:00 och 19:00**, så att det är klart senast **23:00**. Det gäller alla dagar.
 - Varje lägenhet (**5 st**) har en egen inloggning.
 - Man får ha **max 2 pass** bokade åt gången. Ett pass räknas tills det är slut, så när ett pass passerat kan man boka ett nytt.
+- **Kortare pass:** om ett helt pass inte får plats, för att någon annans pass börjar eller för att tvättstugan stänger 23:00, kan man boka den tid som finns kvar, minst 1 timme. Sådana tider är gulmarkerade i kalendern med antal timmar, och man får en varning om hur långt passet blir innan man bekräftar. Ett kort pass räknas som ett av de två passen.
 - Pass får inte överlappa. Man kan boka upp till 28 dagar fram och avboka sina egna pass.
 - Man kan **flytta** ett eget pass som inte har börjat. Antingen drar man passet i kalendern, eller så klickar man på det (eller på *Ändra* under "Mina pass") och väljer en ny starttid. Det fungerar även när båda passen är bokade.
 
-Reglerna och lägenheternas namn ställs in i `public/config.php`.
+Reglerna (bland annat `minPassHours` för kortaste pass) och lägenheternas namn ställs in i `public/config.php`.
 
 ## Hyresvärd (admin)
 
@@ -20,7 +21,7 @@ Under inloggningen finns länken *"Hyresvärd? Logga in här"*. Den leder till a
 - ge en lägenhet ett **nytt lösenord** om någon har glömt sitt eller flyttar. Lösenordet visas en gång och lägenheten loggas ut på alla enheter. Vid flytt kan man även kryssa i att lägenhetens kommande pass ska avbokas.
 - byta sitt eget lösenord under "Byt lösenord".
 
-Hyresvärden kan inte boka pass. Avbokade pass räknas inte i statistiken.
+Hyresvärden kan inte boka pass. Avbokade pass räknas inte i statistiken. Timmarna räknas efter passens faktiska längd.
 
 ## Lägga upp på Simply (tvatt.indoor.net)
 

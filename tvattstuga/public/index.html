@@ -99,6 +99,7 @@
       <div id="grid" class="grid" aria-live="polite"></div>
       <div class="legend">
         <span><i class="sw sw-free"></i>Ledigt – klicka på starttid</span>
+        <span><i class="sw sw-short"></i>Bara kort pass får plats</span>
         <span><i class="sw sw-mine"></i>Ditt pass – dra för att flytta</span>
         <span><i class="sw sw-taken"></i>Bokat</span>
       </div>
@@ -110,6 +111,7 @@
   <form method="dialog">
     <h3 id="confirm-title"></h3>
     <p id="confirm-text" class="muted"></p>
+    <p id="confirm-warn" class="warn" hidden></p>
     <div class="dialog-actions">
       <button class="btn ghost" value="cancel">Avbryt</button>
       <button id="confirm-ok" class="btn primary" value="ok">Boka</button>

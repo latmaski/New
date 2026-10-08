@@ -35,9 +35,29 @@ function tvatt_now_index(array $now): float
     return tvatt_hour_index($now['date'], $now['hour']) + $now['minute'] / 60;
 }
 
+// Ett pass är normalt passHours långt, men kan vara kortare (fältet "hours").
+function tvatt_booking_hours(array $booking, array $config): int
+{
+    return (int) ($booking['hours'] ?? $config['passHours']);
+}
+
 function tvatt_is_active(array $booking, array $now, array $config): bool
 {
-    return tvatt_hour_index($booking['date'], $booking['startHour']) + $config['passHours'] > tvatt_now_index($now);
+    return tvatt_hour_index($booking['date'], $booking['startHour']) + tvatt_booking_hours($booking, $config) > tvatt_now_index($now);
+}
+
+// Antal lediga timmar från startHour fram till nästa pass eller stängning.
+// 0 om startHour ligger inne i ett befintligt pass.
+function tvatt_available_hours(array $bookings, string $date, int $startHour, array $config): int
+{
+    $limit = $config['closeHour'];
+    foreach ($bookings as $b) {
+        if ($b['date'] !== $date) continue;
+        $bStart = (int) $b['startHour'];
+        if ($bStart <= $startHour && $startHour < $bStart + tvatt_booking_hours($b, $config)) return 0;
+        if ($bStart > $startHour && $bStart < $limit) $limit = $bStart;
+    }
+    return max(0, $limit - $startHour);
 }
 
 function tvatt_active_bookings_for(array $bookings, string $apartmentId, array $now, array $config): array
@@ -52,35 +72,47 @@ function tvatt_pad(int $h): string
     return str_pad((string) $h, 2, '0', STR_PAD_LEFT);
 }
 
-// Returnerar null om bokningen är tillåten, annars ett felmeddelande.
-function tvatt_validate_booking(array $bookings, string $apartmentId, $date, $startHour, array $now, array $config): ?string
+// Prövar en bokning. Returnerar ['error' => ?string, 'hours' => int].
+// Får ett helt pass inte plats (annat pass eller stängning i vägen) blir det
+// ett kortare pass, men bara om klienten skickat just det antalet timmar –
+// så att användaren har sett och godkänt längden.
+function tvatt_check_booking(array $bookings, string $apartmentId, $date, $startHour, $hours, array $now, array $config): array
 {
-    if (!tvatt_is_valid_date($date)) return 'Ogiltigt datum.';
-    if (!is_int($startHour)) return 'Ogiltig starttid.';
+    $fail = function (string $error) { return ['error' => $error, 'hours' => 0]; };
+    if (!tvatt_is_valid_date($date)) return $fail('Ogiltigt datum.');
+    if (!is_int($startHour)) return $fail('Ogiltig starttid.');
+    if ($hours !== null && !is_int($hours)) return $fail('Ogiltig längd.');
     $open = $config['openHour'];
     $close = $config['closeHour'];
     $pass = $config['passHours'];
-    if ($startHour < $open || $startHour + $pass > $close) {
-        return 'Pass måste starta mellan ' . tvatt_pad($open) . ':00 och ' . tvatt_pad($close - $pass) . ':00.';
+    $min = $config['minPassHours'] ?? $pass;
+    if ($startHour < $open || $startHour + $min > $close) {
+        return $fail('Pass måste starta mellan ' . tvatt_pad($open) . ':00 och ' . tvatt_pad($close - $min) . ':00.');
     }
 
     // Innevarande timme får bokas (man kan boka "nu"), men inte tidigare än så.
-    $start = tvatt_hour_index($date, $startHour);
-    if ($start < tvatt_hour_index($now['date'], $now['hour'])) return 'Det går inte att boka en tid som redan passerat.';
+    if (tvatt_hour_index($date, $startHour) < tvatt_hour_index($now['date'], $now['hour'])) {
+        return $fail('Det går inte att boka en tid som redan passerat.');
+    }
     if ($date > tvatt_add_days($now['date'], $config['bookingHorizonDays'])) {
-        return 'Du kan boka högst ' . $config['bookingHorizonDays'] . ' dagar fram.';
+        return $fail('Du kan boka högst ' . $config['bookingHorizonDays'] . ' dagar fram.');
     }
 
-    $end = $start + $pass;
-    foreach ($bookings as $b) {
-        $bStart = tvatt_hour_index($b['date'], $b['startHour']);
-        if ($bStart < $end && $start < $bStart + $pass) return 'Tiden krockar med en annan bokning.';
+    $available = tvatt_available_hours($bookings, $date, $startHour, $config);
+    if ($available <= 0) return $fail('Tiden krockar med en annan bokning.');
+    if ($available < $min) return $fail("Det finns bara $available h ledigt här, minst $min h krävs.");
+    $allowed = min($pass, $available);
+    if ($hours === null && $allowed < $pass) {
+        return $fail("Här finns bara $allowed h ledigt. Bekräfta att du vill boka ett kortare pass.");
+    }
+    if ($hours !== null && $hours !== $allowed) {
+        return $fail('Den lediga tiden har ändrats. Ladda om och försök igen.');
     }
 
     if (count(tvatt_active_bookings_for($bookings, $apartmentId, $now, $config)) >= $config['maxActiveBookings']) {
-        return 'Du har redan ' . $config['maxActiveBookings'] . ' pass bokade. Avboka ett eller vänta tills ett passerat.';
+        return $fail('Du har redan ' . $config['maxActiveBookings'] . ' pass bokade. Avboka ett eller vänta tills ett passerat.');
     }
-    return null;
+    return ['error' => null, 'hours' => $allowed];
 }
 
 function tvatt_validate_cancel(?array $booking, string $apartmentId, array $now, array $config): ?string
@@ -93,13 +125,14 @@ function tvatt_validate_cancel(?array $booking, string $apartmentId, array $now,
 
 // Flytt av ett eget pass som inte har börjat. Det nya passet prövas mot
 // samma regler som en ny bokning, men utan det gamla passet.
-function tvatt_validate_move(array $bookings, ?array $booking, string $apartmentId, $date, $startHour, array $now, array $config): ?string
+function tvatt_check_move(array $bookings, ?array $booking, string $apartmentId, $date, $startHour, $hours, array $now, array $config): array
 {
-    if (!$booking) return 'Bokningen finns inte.';
-    if ((string) $booking['apartmentId'] !== $apartmentId) return 'Du kan bara ändra dina egna pass.';
+    $fail = function (string $error) { return ['error' => $error, 'hours' => 0]; };
+    if (!$booking) return $fail('Bokningen finns inte.');
+    if ((string) $booking['apartmentId'] !== $apartmentId) return $fail('Du kan bara ändra dina egna pass.');
     if (tvatt_hour_index($booking['date'], $booking['startHour']) < tvatt_now_index($now)) {
-        return 'Passet har redan börjat och kan inte flyttas.';
+        return $fail('Passet har redan börjat och kan inte flyttas.');
     }
     $others = array_values(array_filter($bookings, function ($b) use ($booking) { return $b['id'] !== $booking['id']; }));
-    return tvatt_validate_booking($others, $apartmentId, $date, $startHour, $now, $config);
+    return tvatt_check_booking($others, $apartmentId, $date, $startHour, $hours, $now, $config);
 }

@@ -7,6 +7,7 @@
   --taken: #E6E9E8; --taken-ink: #56625F;
   --past: repeating-linear-gradient(135deg, #F0F2F1 0 6px, #E9ECEB 6px 12px);
   --error: #B3412F; --error-soft: #FBE9E5;
+  --short: #FFF4D9; --short-hover: #FBE6B0; --short-line: #E3C171; --short-ink: #7A5200;
   --shadow: 0 16px 40px -24px rgba(20, 35, 33, .45);
   --font: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -22,6 +23,7 @@
     --taken: #263130; --taken-ink: #B4C1BE;
     --past: repeating-linear-gradient(135deg, #141B1A 0 6px, #18201F 6px 12px);
     --error: #E88A78; --error-soft: #3A211C;
+    --short: #2A2414; --short-hover: #3A3118; --short-line: #6B5A2A; --short-ink: #E9C46A;
     --shadow: 0 16px 40px -24px rgba(0, 0, 0, .9);
     color-scheme: dark;
   }
@@ -112,6 +114,15 @@ legend { font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 
 .cell.blocked { cursor: not-allowed; }
 .cell.start { box-shadow: inset 0 0 0 1px var(--free-line); }
 .cell.start:hover, .cell.preview { background: var(--free-hover); }
+.cell.short { background: var(--short); box-shadow: inset 0 0 0 1px var(--short-line); display: flex; align-items: center; justify-content: flex-end; padding-right: 6px; }
+.cell.short::after { content: attr(data-short); font-family: var(--mono); font-size: 10.5px; color: var(--short-ink); }
+.cell.short:hover { background: var(--short-hover); }
+.cell.short.preview-head { justify-content: center; padding-right: 0; }
+.cell.short.preview-head::after { content: attr(data-label); color: var(--short-ink); }
+.booking.short-pass span { font-weight: 600; }
+.sw-short { background: var(--short); box-shadow: inset 0 0 0 1px var(--short-line); }
+.warn { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--short); border: 1px solid var(--short-line); color: var(--short-ink); font-size: 14px; font-weight: 500; }
+.warn::before { content: "⚠ "; }
 .cell.preview-head { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); }
 .cell.preview-head::after { content: attr(data-label); font-family: var(--mono); font-size: 11px; color: var(--accent); font-weight: 600; }
 .booking { z-index: 2; border-radius: 8px; padding: 6px 8px; display: flex; flex-direction: column; justify-content: flex-start; overflow: hidden; font-size: 12.5px; pointer-events: none; }
@@ -160,6 +171,7 @@ legend { font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 
 .booking.dragging { opacity: .3; cursor: grabbing; }
 body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select: none; }
 .drop-ghost { z-index: 5; pointer-events: none; border-radius: 8px; border: 2px dashed var(--accent); background: color-mix(in srgb, var(--accent-soft) 85%, transparent); color: var(--accent); font-family: var(--mono); font-size: 12px; font-weight: 600; padding: 6px 8px; }
+.drop-ghost.short { border-color: var(--short-ink); background: color-mix(in srgb, var(--short) 90%, transparent); color: var(--short-ink); }
 .drop-ghost.bad { border-color: var(--error); background: color-mix(in srgb, var(--error-soft) 85%, transparent); color: var(--error); }
 .move-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; padding: 10px 12px; border-radius: 12px; background: var(--accent-soft); border: 1px dashed var(--accent); font-size: 14px; scroll-margin-top: 12px; }
 

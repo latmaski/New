@@ -171,7 +171,8 @@ function renderMine() {
     const li = document.createElement('li');
     li.innerHTML = '<div class="when"><b></b><span></span></div><div class="actions"><button class="btn ghost small" type="button" data-act="move">Ändra</button><button class="btn ghost small danger" type="button" data-act="cancel">Avboka</button></div>';
     li.querySelector('b').textContent = day;
-    li.querySelector('span').textContent = time;
+    const len = b.endHour - b.startHour;
+    li.querySelector('span').textContent = len < state.config.passHours ? `${time} · ${len} h` : time;
     if (state.moving && state.moving.id === b.id) li.classList.add('is-moving');
     const moveBtn = li.querySelector('[data-act="move"]');
     if (isMovable(b)) moveBtn.addEventListener('click', () => startMoveMode(b));
@@ -205,17 +206,41 @@ function renderHeader() {
   }
 }
 
+// Lediga timmar från hour fram till nästa pass (eller stängning).
+function availableHours(date, hour, ignoreId) {
+  let limit = state.config.closeHour;
+  for (const b of state.bookings) {
+    if (b.id === ignoreId || b.date !== date) continue;
+    if (b.startHour <= hour && hour < b.endHour) return { hours: 0, limit };
+    if (b.startHour > hour && b.startHour < limit) limit = b.startHour;
+  }
+  return { hours: limit - hour, limit };
+}
+
+const bookable = (status) => status.kind === 'start' || status.kind === 'short';
+
 // ignoreId: passet som flyttas räknas varken som krock eller mot maxantalet.
+// 'start' = helt pass får plats, 'short' = bara ett kortare pass får plats.
 function cellStatus(date, hour, ignoreId = state.moving && state.moving.id) {
-  const { openHour, closeHour, passHours, maxActiveBookings, bookingHorizonDays } = state.config;
+  const { closeHour, passHours, maxActiveBookings, bookingHorizonDays } = state.config;
+  const minHours = state.config.minPassHours || passHours;
   const start = hourIndex(date, hour);
   if (start < hourIndex(state.now.date, state.now.hour)) return { kind: 'past', reason: 'Tiden har redan passerat.' };
   if (date > addDays(state.now.date, bookingHorizonDays)) return { kind: 'blocked', reason: `Du kan boka högst ${bookingHorizonDays} dagar fram.` };
-  if (hour + passHours > closeHour) return { kind: 'blocked', reason: `Sista starttid är ${pad(closeHour - passHours)}:00.` };
-  const clash = state.bookings.some((b) => b.id !== ignoreId && b.date === date && b.startHour < hour + passHours && hour < b.endHour);
-  if (clash) return { kind: 'blocked', reason: 'Ett pass härifrån krockar med en annan bokning.' };
+  const free = availableHours(date, hour, ignoreId);
+  if (free.hours <= 0) return { kind: 'blocked', reason: 'Tiden är redan bokad.' };
+  if (free.hours < minHours) return { kind: 'blocked', reason: `Bara ${free.hours} h ledigt här, minst ${minHours} h krävs.` };
   if (!ignoreId && state.mine.length >= maxActiveBookings) return { kind: 'blocked', reason: `Du har redan ${maxActiveBookings} pass bokade.` };
-  return { kind: 'start' };
+  const hours = Math.min(passHours, free.hours);
+  if (hours === passHours) return { kind: 'start', hours };
+  const why = free.limit === closeHour ? `tvättstugan stänger ${pad(closeHour)}:00` : `nästa pass börjar ${pad(free.limit)}:00`;
+  return { kind: 'short', hours, why };
+}
+
+function shortWarning(status, startHour) {
+  if (status.kind !== 'short') return '';
+  return `Kortare pass än vanligt: ${status.hours} ${status.hours === 1 ? 'timme' : 'timmar'} `
+    + `(${pad(startHour)}:00–${pad(startHour + status.hours)}:00), eftersom ${status.why}.`;
 }
 
 function renderGrid() {
@@ -249,17 +274,23 @@ function renderGrid() {
       const cell = document.createElement('button');
       cell.type = 'button';
       cell.className = `cell ${status.kind}`;
-      cell.dataset.label = `${pad(h)}–${pad(h + passHours)}`;
       cell.dataset.date = date;
       cell.dataset.hour = String(h);
-      if (status.kind === 'start') {
+      if (bookable(status)) {
+        const end = h + status.hours;
+        cell.dataset.label = status.kind === 'short' ? `${pad(h)}–${pad(end)} · ${status.hours} h` : `${pad(h)}–${pad(end)}`;
+        if (status.kind === 'short') {
+          cell.dataset.short = `${status.hours} h`;
+          cell.title = shortWarning(status, h);
+        }
         const verb = state.moving ? 'Flytta passet till' : 'Boka';
-        cell.setAttribute('aria-label', `${verb} ${fmt(date, { weekday: 'long', day: 'numeric', month: 'long' })} ${pad(h)}:00–${pad(h + passHours)}:00`);
-        cell.addEventListener('click', () => (state.moving ? confirmMove(state.moving, date, h) : confirmBooking(date, h)));
-        cell.addEventListener('mouseenter', () => preview(cells, date, h, true));
-        cell.addEventListener('mouseleave', () => preview(cells, date, h, false));
-        cell.addEventListener('focus', () => preview(cells, date, h, true));
-        cell.addEventListener('blur', () => preview(cells, date, h, false));
+        const extra = status.kind === 'short' ? ` (kort pass, ${status.hours} h)` : '';
+        cell.setAttribute('aria-label', `${verb} ${fmt(date, { weekday: 'long', day: 'numeric', month: 'long' })} ${pad(h)}:00–${pad(end)}:00${extra}`);
+        cell.addEventListener('click', () => (state.moving ? confirmMove(state.moving, date, h, status) : confirmBooking(date, h, status)));
+        cell.addEventListener('mouseenter', () => preview(cells, date, h, status.hours, true));
+        cell.addEventListener('mouseleave', () => preview(cells, date, h, status.hours, false));
+        cell.addEventListener('focus', () => preview(cells, date, h, status.hours, true));
+        cell.addEventListener('blur', () => preview(cells, date, h, status.hours, false));
       } else {
         cell.tabIndex = -1;
         cell.setAttribute('aria-hidden', 'true');
@@ -282,7 +313,9 @@ function renderGrid() {
     el.className = `booking ${b.mine ? 'mine' : 'taken'}${ended ? ' ended' : ''}`;
     el.innerHTML = '<b></b><span></span>';
     el.querySelector('b').textContent = b.mine ? 'Ditt pass' : b.apartmentName;
-    el.querySelector('span').textContent = `${pad(b.startHour)}–${pad(b.endHour)}`;
+    const len = b.endHour - b.startHour;
+    el.querySelector('span').textContent = `${pad(b.startHour)}–${pad(b.endHour)}${len < passHours ? ` · ${len} h` : ''}`;
+    if (len < passHours) el.classList.add('short-pass');
     if (isMovable(b)) {
       el.classList.add('movable');
       if (state.moving && state.moving.id === b.id) el.classList.add('moving');
@@ -301,8 +334,8 @@ function renderGrid() {
   }
 }
 
-function preview(cells, date, hour, on) {
-  for (let h = hour; h < hour + state.config.passHours; h++) {
+function preview(cells, date, hour, hours, on) {
+  for (let h = hour; h < hour + hours; h++) {
     const c = cells.get(`${date}|${h}`);
     if (!c) continue;
     c.classList.toggle('preview', on);
@@ -310,9 +343,16 @@ function preview(cells, date, hour, on) {
   }
 }
 
-function confirmBooking(date, startHour) {
-  const endHour = startHour + state.config.passHours;
-  $('confirm-ok').textContent = 'Boka';
+function setWarning(text) {
+  $('confirm-warn').hidden = !text;
+  $('confirm-warn').textContent = text;
+}
+
+function confirmBooking(date, startHour, status) {
+  const hours = status.hours;
+  const endHour = startHour + hours;
+  setWarning(shortWarning(status, startHour));
+  $('confirm-ok').textContent = status.kind === 'short' ? `Boka ${hours} h` : 'Boka';
   $('confirm-title').textContent = `Boka ${fmt(date, { weekday: 'long', day: 'numeric', month: 'long' })}?`;
   $('confirm-text').textContent = `Tvättstugan blir din kl ${pad(startHour)}:00–${pad(endHour)}:00.`;
   const dialog = $('confirm-dialog');
@@ -321,7 +361,7 @@ function confirmBooking(date, startHour) {
   dialog.addEventListener('close', async () => {
     if (dialog.returnValue !== 'ok') return;
     try {
-      await api('api/bookings', { method: 'POST', body: { date, startHour } });
+      await api('api/bookings', { method: 'POST', body: { date, startHour, hours } });
       toast(`Bokat ${pad(startHour)}:00–${pad(endHour)}:00.`);
     } catch (err) {
       toast(err.message, true);
@@ -356,28 +396,29 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && state.moving && !document.querySelector('dialog[open]')) stopMoveMode();
 });
 
-function describeSlot(date, startHour) {
-  return describe({ date, startHour, endHour: startHour + state.config.passHours });
+function describeSlot(date, startHour, hours) {
+  return describe({ date, startHour, endHour: startHour + hours });
 }
 
-function confirmMove(b, date, startHour) {
+function confirmMove(b, date, startHour, status) {
   const from = describe(b);
-  const to = describeSlot(date, startHour);
-  $('confirm-ok').textContent = 'Flytta';
+  const to = describeSlot(date, startHour, status.hours);
+  setWarning(shortWarning(status, startHour));
+  $('confirm-ok').textContent = status.kind === 'short' ? `Flytta (${status.hours} h)` : 'Flytta';
   $('confirm-title').textContent = 'Flytta ditt pass?';
   $('confirm-text').textContent = `Från ${from.day} ${from.time} till ${to.day} ${to.time}.`;
   const dialog = $('confirm-dialog');
   dialog.returnValue = '';
   dialog.showModal();
   dialog.addEventListener('close', () => {
-    if (dialog.returnValue === 'ok') moveBooking(b, date, startHour);
+    if (dialog.returnValue === 'ok') moveBooking(b, date, startHour, status.hours);
   }, { once: true });
 }
 
-async function moveBooking(b, date, startHour) {
+async function moveBooking(b, date, startHour, hours) {
   try {
-    await api(`api/bookings/${b.id}`, { method: 'POST', body: { date, startHour } });
-    const to = describeSlot(date, startHour);
+    await api(`api/bookings/${b.id}`, { method: 'POST', body: { date, startHour, hours } });
+    const to = describeSlot(date, startHour, hours);
     toast(`Passet är flyttat till ${to.day} ${to.time}.`);
     state.moving = null;
   } catch (err) {
@@ -413,16 +454,22 @@ function startDrag(e, b, el) {
     const cell = cellAt(ev.clientX, ev.clientY);
     if (!cell) return;
     const date = cell.dataset.date;
-    const start = Math.max(openHour, Math.min(closeHour - passHours, Number(cell.dataset.hour) - grabOffset));
-    const status = cellStatus(date, start, b.id);
-    const ok = status.kind === 'start';
+    let start = Math.max(openHour, Math.min(closeHour - passHours, Number(cell.dataset.hour) - grabOffset));
+    // Släpp där pekaren är; finns bara en kortare lucka där blir det ett kort pass.
+    let status = cellStatus(date, start, b.id);
+    if (!bookable(status) && start !== Number(cell.dataset.hour)) {
+      start = Number(cell.dataset.hour);
+      status = cellStatus(date, start, b.id);
+    }
+    const ok = bookable(status);
+    const span = ok ? status.hours : passHours;
     // Markering ovanpå allt annat i rutnätet, så den syns även över andras pass.
-    ghost.className = `drop-ghost ${ok ? 'ok' : 'bad'}`;
-    ghost.textContent = ok ? `${pad(start)}–${pad(start + passHours)}` : 'Upptaget';
+    ghost.className = `drop-ghost ${ok ? (status.kind === 'short' ? 'ok short' : 'ok') : 'bad'}`;
+    ghost.textContent = !ok ? 'Upptaget' : `${pad(start)}–${pad(start + span)}${status.kind === 'short' ? ` · bara ${span} h` : ''}`;
     ghost.style.gridColumn = cell.style.gridColumn;
-    ghost.style.gridRow = `${start - openHour + 2} / span ${passHours}`;
+    ghost.style.gridRow = `${start - openHour + 2} / span ${Math.min(span, closeHour - start)}`;
     $('grid').append(ghost);
-    target = { date, startHour: start, ok, reason: status.reason };
+    target = { date, startHour: start, ok, status };
   };
   const onUp = () => {
     window.removeEventListener('pointermove', onMove);
@@ -433,8 +480,10 @@ function startDrag(e, b, el) {
     clear();
     if (!dragging) return startMoveMode(b);
     if (!target || (target.date === b.date && target.startHour === b.startHour)) return;
-    if (!target.ok) return toast(target.reason || 'Den tiden går inte att boka.', true);
-    moveBooking(b, target.date, target.startHour);
+    if (!target.ok) return toast(target.status.reason || 'Den tiden går inte att boka.', true);
+    // Kort pass bekräftas alltid, så att man ser att det blir kortare.
+    if (target.status.kind === 'short') return confirmMove(b, target.date, target.startHour, target.status);
+    moveBooking(b, target.date, target.startHour, target.status.hours);
   };
   window.addEventListener('pointermove', onMove);
   window.addEventListener('pointerup', onUp);
@@ -478,15 +527,15 @@ const monthKey = (date, back = 0) => {
 };
 const monthName = (key) => fmt(`${key}-01`, { month: 'long', year: 'numeric' });
 
-function periodCount(apt, period) {
+function periodCount(apt, period, field = 'months') {
   const today = state.stats.now.date;
-  const months = apt.months;
+  const months = apt[field];
   const sum = (keys) => keys.reduce((n, k) => n + (months[k] || 0), 0);
   if (period === 'month') return sum([monthKey(today)]);
   if (period === 'last') return sum([monthKey(today, 1)]);
   if (period === 'year') return sum(Object.keys(months).filter((k) => k.startsWith(today.slice(0, 4))));
   if (period === '12m') return sum(Array.from({ length: 12 }, (_, i) => monthKey(today, i)));
-  return apt.total;
+  return field === 'monthHours' ? apt.totalHours : apt.total;
 }
 
 function periodLabel(period) {
@@ -504,7 +553,7 @@ async function loadStats() {
 }
 
 function renderStats() {
-  const { apartments, passHours } = state.stats;
+  const { apartments } = state.stats;
   const chips = $('period-chips');
   chips.innerHTML = '';
   for (const [key, label] of PERIODS) {
@@ -518,9 +567,11 @@ function renderStats() {
   }
 
   const counts = apartments.map((a) => periodCount(a, state.period));
+  const hoursPer = apartments.map((a) => periodCount(a, state.period, 'monthHours'));
   const total = counts.reduce((a, b) => a + b, 0);
+  const totalHours = hoursPer.reduce((a, b) => a + b, 0);
   const max = Math.max(1, ...counts);
-  $('stats-sub').textContent = `${total} pass (${total * passHours} timmar) totalt, ${periodLabel(state.period)}.`;
+  $('stats-sub').textContent = `${total} pass (${totalHours} timmar) totalt, ${periodLabel(state.period)}.`;
 
   const bars = $('stats-bars');
   bars.innerHTML = '';
@@ -533,7 +584,7 @@ function renderStats() {
     row.querySelector('.bar').style.width = `${(n / max) * 100}%`;
     row.querySelector('.value').innerHTML = `${n} <span>pass</span>`;
     const share = total ? Math.round((n / total) * 100) : 0;
-    row.querySelector('.bar-tip').textContent = `${apt.name}: ${n} pass · ${n * passHours} h · ${share} % av alla`;
+    row.querySelector('.bar-tip').textContent = `${apt.name}: ${n} pass · ${hoursPer[i]} h · ${share} % av alla`;
     row.setAttribute('aria-label', row.querySelector('.bar-tip').textContent);
     bars.append(row);
   });
@@ -615,7 +666,7 @@ async function startApp() {
   const first = await api('api/bookings');
   state.now = first.now;
   // Efter sista starttiden finns inget kvar att boka idag – visa imorgon.
-  const lastStart = state.config.closeHour - state.config.passHours;
+  const lastStart = state.config.closeHour - (state.config.minPassHours || state.config.passHours);
   const firstDay = state.now.hour > lastStart ? addDays(state.now.date, 1) : state.now.date;
   state.weekStart = mondayOf(firstDay);
   state.selectedDay = firstDay;
@@ -628,6 +679,7 @@ async function init() {
   state.config = await api('api/config');
   const { openHour, closeHour, passHours, maxActiveBookings, bookingHorizonDays } = state.config;
   $('rules-text').textContent = `Pass om ${passHours} timmar mellan ${pad(openHour)}:00 och ${pad(closeHour)}:00, alla dagar. `
+    + 'Får ett helt pass inte plats kan du boka ett kortare. '
     + `Max ${maxActiveBookings} bokade pass åt gången, upp till ${bookingHorizonDays} dagar fram.`;
   try {
     await startApp();

@@ -140,7 +140,13 @@ test('flytta ett eget pass', async (t) => {
   assert.equal((await move(a, p2.id, '2026-10-09', 8)).status, 200);
 
   assert.match((await move(a, p1.id, '2026-10-10', 12)).body.error, /krockar/);
-  assert.match((await move(a, p1.id, '2026-10-10', 20)).body.error, /mellan 06:00 och 19:00/);
+  assert.match((await move(a, p1.id, '2026-10-10', 23)).body.error, /mellan 06:00 och 22:00/);
+  // Flytt till en kortare lucka: kräver bekräftad längd och sparar den.
+  assert.match((await move(a, p1.id, '2026-10-10', 8)).body.error, /bara 2 h ledigt/);
+  const shortMove = await a('POST', `/api/bookings/${p1.id}`, { date: '2026-10-10', startHour: 8, hours: 2 });
+  assert.deepEqual([shortMove.body.startHour, shortMove.body.endHour], [8, 10]);
+  // ...och tillbaka till ett helt pass.
+  assert.equal((await move(a, p1.id, '2026-10-10', 14)).body.endHour, 18);
   assert.match((await move(a, p1.id, '2026-10-07', 8)).body.error, /passerat/);
   assert.equal((await move(b, p1.id, '2026-10-11', 6)).status, 403);
   assert.equal((await move(a, 'finnsinte', '2026-10-11', 6)).status, 404);

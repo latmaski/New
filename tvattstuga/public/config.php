@@ -6,6 +6,7 @@ return [
     'openHour' => 6,            // första möjliga starttid
     'closeHour' => 23,          // allt måste vara klart senast då
     'passHours' => 4,           // längd på ett pass
+    'minPassHours' => 1,        // kortaste pass när ett helt inte får plats (före annans pass eller stängning)
     'maxActiveBookings' => 2,   // max antal kommande/pågående pass per lägenhet
     'bookingHorizonDays' => 28, // hur långt fram man får boka
     'apartments' => [

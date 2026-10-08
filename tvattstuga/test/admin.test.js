@@ -24,6 +24,8 @@ test('hyresvärden loggar in och ser statistik per lägenhet', async (t) => {
   assert.equal(stats.body.apartments.length, 5);
   const [l1, l2, l3] = stats.body.apartments;
   assert.deepEqual(l1.months, { '2026-10': 3 });
+  assert.deepEqual(l1.monthHours, { '2026-10': 12 });
+  assert.equal(l1.totalHours, 12);
   assert.equal(l1.total, 3);
   assert.equal(l1.upcoming, 1);
   assert.deepEqual(l2.months, { '2026-11': 1 });

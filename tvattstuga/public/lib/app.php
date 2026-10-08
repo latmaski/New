@@ -91,19 +91,23 @@ function tvatt_admin_stats(array $bookings, array $now, array $config): array
 {
     $rows = [];
     foreach ($config['apartments'] as $apt) {
-        $rows[$apt['id']] = ['id' => $apt['id'], 'name' => $apt['name'], 'months' => [], 'total' => 0, 'upcoming' => 0];
+        $rows[$apt['id']] = ['id' => $apt['id'], 'name' => $apt['name'], 'months' => [], 'monthHours' => [], 'total' => 0, 'totalHours' => 0, 'upcoming' => 0];
     }
     foreach ($bookings as $b) {
         $id = (string) $b['apartmentId'];
         if (!isset($rows[$id])) continue;
         $month = substr($b['date'], 0, 7);
+        $hours = tvatt_booking_hours($b, $config);
         $rows[$id]['months'][$month] = ($rows[$id]['months'][$month] ?? 0) + 1;
+        $rows[$id]['monthHours'][$month] = ($rows[$id]['monthHours'][$month] ?? 0) + $hours;
         $rows[$id]['total']++;
+        $rows[$id]['totalHours'] += $hours;
         if (tvatt_is_active($b, $now, $config)) $rows[$id]['upcoming']++;
     }
     foreach ($rows as &$row) {
         ksort($row['months']);
         $row['months'] = (object) $row['months'];
+        $row['monthHours'] = (object) $row['monthHours'];
     }
     return ['now' => $now, 'passHours' => $config['passHours'], 'apartments' => array_values($rows)];
 }
@@ -147,7 +151,7 @@ function tvatt_dispatch(TvattStore $store, array $config)
     $public = function (array $b) use ($names, $config, &$me) {
         return [
             'id' => $b['id'], 'date' => $b['date'], 'startHour' => $b['startHour'],
-            'endHour' => $b['startHour'] + $config['passHours'], 'apartmentId' => (string) $b['apartmentId'],
+            'endHour' => $b['startHour'] + tvatt_booking_hours($b, $config), 'apartmentId' => (string) $b['apartmentId'],
             'apartmentName' => $names[$b['apartmentId']] ?? (string) $b['apartmentId'],
             'mine' => (string) $b['apartmentId'] === $me,
         ];
@@ -155,7 +159,7 @@ function tvatt_dispatch(TvattStore $store, array $config)
 
     // Öppna anrop
     if ($method === 'GET' && $route === '/config') {
-        $keys = ['name', 'openHour', 'closeHour', 'passHours', 'maxActiveBookings', 'bookingHorizonDays'];
+        $keys = ['name', 'openHour', 'closeHour', 'passHours', 'minPassHours', 'maxActiveBookings', 'bookingHorizonDays'];
         $out = array_intersect_key($config, array_flip($keys));
         $out['apartments'] = array_map(function ($a) { return ['id' => $a['id'], 'name' => $a['name']]; }, $config['apartments']);
         return tvatt_send(200, $out);
@@ -250,11 +254,11 @@ function tvatt_dispatch(TvattStore $store, array $config)
         if (!$body) return tvatt_fail(400, 'Ogiltig förfrågan.');
         $date = $body['date'] ?? null;
         $startHour = $body['startHour'] ?? null;
-        $error = tvatt_validate_booking($store->data['bookings'], $me, $date, $startHour, $now, $config);
-        if ($error) return tvatt_fail(409, $error);
+        $check = tvatt_check_booking($store->data['bookings'], $me, $date, $startHour, $body['hours'] ?? null, $now, $config);
+        if ($check['error']) return tvatt_fail(409, $check['error']);
         $booking = [
             'id' => bin2hex(random_bytes(12)), 'apartmentId' => $me, 'date' => $date, 'startHour' => $startHour,
-            'createdAt' => gmdate('c', $ts),
+            'hours' => $check['hours'], 'createdAt' => gmdate('c', $ts),
         ];
         $store->data['bookings'][] = $booking;
         $store->save();
@@ -276,10 +280,11 @@ function tvatt_dispatch(TvattStore $store, array $config)
             if (!$body) return tvatt_fail(400, 'Ogiltig förfrågan.');
             $date = $body['date'] ?? null;
             $startHour = $body['startHour'] ?? null;
-            $error = tvatt_validate_move($store->data['bookings'], $booking, $me, $date, $startHour, $now, $config);
-            if ($error) return tvatt_fail(!$booking ? 404 : ((string) $booking['apartmentId'] !== $me ? 403 : 409), $error);
+            $check = tvatt_check_move($store->data['bookings'], $booking, $me, $date, $startHour, $body['hours'] ?? null, $now, $config);
+            if ($check['error']) return tvatt_fail(!$booking ? 404 : ((string) $booking['apartmentId'] !== $me ? 403 : 409), $check['error']);
             $store->data['bookings'][$index]['date'] = $date;
             $store->data['bookings'][$index]['startHour'] = $startHour;
+            $store->data['bookings'][$index]['hours'] = $check['hours'];
             $store->data['bookings'][$index]['movedAt'] = gmdate('c', $ts);
             $store->save();
             return tvatt_send(200, $public($store->data['bookings'][$index]));
