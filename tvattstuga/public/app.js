@@ -140,6 +140,7 @@ $('password-form').addEventListener('submit', async (e) => {
 async function load() {
   const data = await api(`api/bookings?from=${state.weekStart}&to=${addDays(state.weekStart, 6)}`);
   state.now = data.now;
+  applyRules(data.rules);
   state.bookings = data.bookings;
   state.mine = data.mine;
   if (state.moving) state.moving = state.mine.find((b) => b.id === state.moving.id && isMovable(b)) || null;
@@ -224,6 +225,7 @@ const bookable = (status) => status.kind === 'start' || status.kind === 'short';
 function cellStatus(date, hour, ignoreId = state.moving && state.moving.id) {
   const { closeHour, passHours, maxActiveBookings, bookingHorizonDays } = state.config;
   const minHours = state.config.minPassHours || passHours;
+  if (hour < state.config.openHour || hour >= closeHour) return { kind: 'closed' };
   const start = hourIndex(date, hour);
   if (start < hourIndex(state.now.date, state.now.hour)) return { kind: 'past', reason: 'Tiden har redan passerat.' };
   if (date > addDays(state.now.date, bookingHorizonDays)) return { kind: 'blocked', reason: `Du kan boka högst ${bookingHorizonDays} dagar fram.` };
@@ -244,8 +246,17 @@ function shortWarning(status, startHour) {
 }
 
 function renderGrid() {
-  const { openHour, closeHour, passHours } = state.config;
+  const { passHours } = state.config;
   const days = narrow.matches ? [state.selectedDay] : Array.from({ length: 7 }, (_, i) => addDays(state.weekStart, i));
+  // Visa även timmar utanför öppettiden om det finns pass där (bokade före en regeländring).
+  let openHour = state.config.openHour;
+  let closeHour = state.config.closeHour;
+  for (const b of state.bookings) {
+    if (!days.includes(b.date)) continue;
+    openHour = Math.min(openHour, b.startHour);
+    closeHour = Math.max(closeHour, b.endHour);
+  }
+  state.gridOpen = openHour;
   const grid = $('grid');
   const hours = closeHour - openHour;
   grid.innerHTML = '';
@@ -294,6 +305,7 @@ function renderGrid() {
       } else {
         cell.tabIndex = -1;
         cell.setAttribute('aria-hidden', 'true');
+        if (status.kind === 'closed') cell.title = 'Utanför öppettiden.';
         if (status.reason && status.kind !== 'past') {
           cell.title = status.reason;
           cell.addEventListener('click', () => toast(status.reason, true));
@@ -433,6 +445,7 @@ const cellAt = (x, y) => document.elementsFromPoint(x, y).find((el) => el.classL
 function startDrag(e, b, el) {
   if (e.button !== 0) return;
   const { openHour, closeHour, passHours } = state.config;
+  const gridOpen = state.gridOpen;
   const startX = e.clientX;
   const startY = e.clientY;
   const grab = cellAt(e.clientX, e.clientY);
@@ -467,7 +480,7 @@ function startDrag(e, b, el) {
     ghost.className = `drop-ghost ${ok ? (status.kind === 'short' ? 'ok short' : 'ok') : 'bad'}`;
     ghost.textContent = !ok ? 'Upptaget' : `${pad(start)}–${pad(start + span)}${status.kind === 'short' ? ` · bara ${span} h` : ''}`;
     ghost.style.gridColumn = cell.style.gridColumn;
-    ghost.style.gridRow = `${start - openHour + 2} / span ${Math.min(span, closeHour - start)}`;
+    ghost.style.gridRow = `${start - gridOpen + 2} / span ${Math.max(1, Math.min(span, closeHour - start))}`;
     $('grid').append(ghost);
     target = { date, startHour: start, ok, status };
   };
@@ -645,6 +658,87 @@ $('copy-password').addEventListener('click', async () => {
   }
 });
 
+// ---------- Bokningsregler (hyresvärd) ----------
+const RULE_FIELDS = {
+  openHour: 'r-open', closeHour: 'r-close', passHours: 'r-pass', minPassHours: 'r-min',
+  maxActiveBookings: 'r-max', bookingHorizonDays: 'r-horizon',
+};
+
+function fillSelect(id, values, label, selected) {
+  const sel = $(id);
+  sel.innerHTML = '';
+  for (const v of values) {
+    const o = document.createElement('option');
+    o.value = String(v);
+    o.textContent = label(v);
+    sel.append(o);
+  }
+  if (selected !== undefined && values.includes(selected)) sel.value = String(selected);
+}
+
+const range = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
+
+function readRulesForm() {
+  const r = {};
+  for (const [key, id] of Object.entries(RULE_FIELDS)) r[key] = Number.parseInt($(id).value, 10);
+  return r;
+}
+
+// Fyller formuläret och håller beroende val (längd ≤ öppettid, kortaste ≤ längd) giltiga.
+function renderRulesForm(r) {
+  fillSelect('r-open', range(0, 23), (h) => `${pad(h)}:00`, r.openHour);
+  fillSelect('r-close', range(r.openHour + 1, 24), (h) => `${pad(h)}:00`, Math.max(r.closeHour, r.openHour + 1));
+  const span = Number($('r-close').value) - r.openHour;
+  fillSelect('r-pass', range(1, Math.min(12, span)), hoursText, Math.min(r.passHours, span));
+  const pass = Number($('r-pass').value);
+  fillSelect('r-min', range(1, pass), (h) => (h === pass ? `Bara hela pass (${hoursText(h)})` : hoursText(h)), Math.min(r.minPassHours, pass));
+  $('r-max').value = String(r.maxActiveBookings);
+  $('r-horizon').value = String(r.bookingHorizonDays);
+  updateRulesSummary();
+}
+
+function updateRulesSummary() {
+  const r = readRulesForm();
+  const valid = Object.values(r).every(Number.isInteger) && r.maxActiveBookings >= 1 && r.bookingHorizonDays >= 1;
+  $('rules-summary').textContent = valid ? rulesSummary(r) : 'Fyll i alla fält.';
+}
+
+async function loadRules() {
+  const data = await api('api/admin/rules');
+  state.ruleDefaults = data.defaults;
+  renderRulesForm(data.rules);
+}
+
+for (const id of ['r-open', 'r-close', 'r-pass']) {
+  $(id).addEventListener('change', () => renderRulesForm(readRulesForm()));
+}
+for (const id of ['r-min', 'r-max', 'r-horizon']) {
+  $(id).addEventListener('input', updateRulesSummary);
+}
+
+$('rules-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  $('rules-error').textContent = '';
+  try {
+    const data = await api('api/admin/rules', { method: 'POST', body: readRulesForm() });
+    renderRulesForm(data.rules);
+    toast('Reglerna är sparade och gäller nu.');
+  } catch (err) {
+    $('rules-error').textContent = err.message;
+  }
+});
+
+$('rules-reset').addEventListener('click', async () => {
+  if (!window.confirm(`Återställa standardreglerna?\n\n${rulesSummary(state.ruleDefaults)}`)) return;
+  try {
+    const data = await api('api/admin/rules', { method: 'DELETE' });
+    renderRulesForm(data.rules);
+    toast('Standardreglerna gäller igen.');
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
 function refresh() {
   if (!state.me || document.hidden) return;
   (state.me.isAdmin ? loadStats() : load()).catch(() => {});
@@ -658,13 +752,14 @@ async function startApp() {
   $('admin-view').hidden = !me.isAdmin;
   $('resident-view').hidden = me.isAdmin;
   if (me.isAdmin) {
-    await loadStats();
+    await Promise.all([loadStats(), loadRules()]);
     $('login').hidden = true;
     $('app').hidden = false;
     return;
   }
   const first = await api('api/bookings');
   state.now = first.now;
+  applyRules(first.rules);
   // Efter sista starttiden finns inget kvar att boka idag – visa imorgon.
   const lastStart = state.config.closeHour - (state.config.minPassHours || state.config.passHours);
   const firstDay = state.now.hour > lastStart ? addDays(state.now.date, 1) : state.now.date;
@@ -675,12 +770,28 @@ async function startApp() {
   $('app').hidden = false;
 }
 
+const hoursText = (n) => `${n} ${n === 1 ? 'timme' : 'timmar'}`;
+
+function rulesSummary(r) {
+  const lastFull = r.closeHour - r.passHours;
+  const short = r.minPassHours < r.passHours
+    ? `Får ett helt pass inte plats kan man boka ett kortare, ned till ${hoursText(r.minPassHours)}. `
+    : '';
+  return `Pass om ${hoursText(r.passHours)} mellan ${pad(r.openHour)}:00 och ${pad(r.closeHour)}:00, alla dagar `
+    + `(hela pass startar senast ${pad(lastFull)}:00). ${short}`
+    + `Max ${r.maxActiveBookings} bokade pass åt gången, upp till ${r.bookingHorizonDays} dagar fram.`;
+}
+
+// Reglerna kan ändras av hyresvärden; servern skickar med dem vid varje hämtning.
+function applyRules(rules) {
+  if (rules) Object.assign(state.config, rules);
+  $('rules-text').textContent = rulesSummary(state.config).replace('man boka', 'du boka');
+  $('legend-short').hidden = !(state.config.minPassHours < state.config.passHours);
+}
+
 async function init() {
   state.config = await api('api/config');
-  const { openHour, closeHour, passHours, maxActiveBookings, bookingHorizonDays } = state.config;
-  $('rules-text').textContent = `Pass om ${passHours} timmar mellan ${pad(openHour)}:00 och ${pad(closeHour)}:00, alla dagar. `
-    + 'Får ett helt pass inte plats kan du boka ett kortare. '
-    + `Max ${maxActiveBookings} bokade pass åt gången, upp till ${bookingHorizonDays} dagar fram.`;
+  applyRules();
   try {
     await startApp();
   } catch {

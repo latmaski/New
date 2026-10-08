@@ -69,3 +69,49 @@ test('hyresvärden ger en lägenhet nytt lösenord, med eller utan avbokning', a
   assert.equal((await admin('POST', '/api/password', { currentPassword: env.passwords.admin, newPassword: 'vard12345' })).status, 200);
   assert.equal((await env.client()('POST', '/api/login', { apartmentId: 'admin', password: 'vard12345' })).status, 200);
 });
+
+test('hyresvärden ändrar bokningsreglerna', async (t) => {
+  const env = await setup('2026-10-07T12:30:00+02:00');
+  t.after(env.close);
+  const admin = await env.login('admin');
+  const res = await env.login('1');
+  const book = (c, date, startHour, hours) => c('POST', '/api/bookings', { date, startHour, hours });
+  const before = await book(res, '2026-10-10', 6); // giltigt enligt standardreglerna
+  assert.equal(before.status, 201);
+
+  const current = await admin('GET', '/api/admin/rules');
+  assert.deepEqual(current.body.rules, {
+    openHour: 6, closeHour: 23, passHours: 4, minPassHours: 1, maxActiveBookings: 2, bookingHorizonDays: 28,
+  });
+
+  const rules = { openHour: 7, closeHour: 22, passHours: 3, minPassHours: 3, maxActiveBookings: 3, bookingHorizonDays: 14 };
+  const bad = [
+    [{ ...rules, closeHour: 7 }, /efter öppningstiden/],
+    [{ ...rules, passHours: 16 }, /rymmas inom öppettiden/],
+    [{ ...rules, minPassHours: 4 }, /Kortaste pass/],
+    [{ ...rules, maxActiveBookings: 0 }, /Max antal pass/],
+    [{ ...rules, bookingHorizonDays: '14' }, /heltal/],
+  ];
+  for (const [body, msg] of bad) assert.match((await admin('POST', '/api/admin/rules', body)).body.error, msg);
+  assert.equal((await res('POST', '/api/admin/rules', rules)).status, 403);
+
+  assert.equal((await admin('POST', '/api/admin/rules', rules)).status, 200);
+  assert.deepEqual((await env.client()('GET', '/api/config')).body.passHours, 3);
+  assert.deepEqual((await res('GET', '/api/bookings')).body.rules, rules);
+
+  // Nya regler gäller för nya bokningar; det gamla passet 06–10 står kvar.
+  assert.match((await book(res, '2026-10-11', 6)).body.error, /mellan 07:00 och 19:00/);
+  const p = await book(res, '2026-10-11', 7);
+  assert.deepEqual([p.status, p.body.endHour], [201, 10]);
+  assert.equal((await book(res, '2026-10-11', 19)).body.endHour, 22);
+  assert.match((await book(res, '2026-10-12', 8)).body.error, /redan 3 pass/);
+  assert.match((await book(await env.login('2'), '2026-10-22', 8)).body.error, /14 dagar fram/);
+  // Ingen kort lucka tillåts när kortaste pass = passets längd.
+  assert.match((await book(await env.login('2'), '2026-10-11', 17, 2)).body.error, /bara 2 h ledigt här, minst 3 h/);
+  const list = (await res('GET', '/api/bookings?from=2026-10-10&to=2026-10-10')).body.bookings;
+  assert.deepEqual([list[0].startHour, list[0].endHour], [6, 10]);
+
+  // Återställ till standard.
+  assert.equal((await admin('DELETE', '/api/admin/rules')).body.rules.passHours, 4);
+  assert.equal((await env.client()('GET', '/api/config')).body.closeHour, 23);
+});

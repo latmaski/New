@@ -64,11 +64,37 @@
       </div>
     </section>
 
+    <div class="admin-side">
+    <section class="panel" aria-labelledby="rules-title">
+      <h2 id="rules-title">Bokningsregler</h2>
+      <p class="muted small">Gäller direkt för alla nya bokningar och flyttar. Redan bokade pass påverkas inte.</p>
+      <form id="rules-form" class="rules-form" novalidate>
+        <div class="field-row">
+          <label class="field"><span>Öppnar</span><select id="r-open"></select></label>
+          <label class="field"><span>Stänger</span><select id="r-close"></select></label>
+        </div>
+        <label class="field"><span>Passets längd</span><select id="r-pass"></select></label>
+        <label class="field"><span>Kortaste pass</span><select id="r-min"></select>
+          <small>När ett helt pass inte får plats före nästa pass eller stängningen.</small></label>
+        <div class="field-row">
+          <label class="field"><span>Max bokade pass</span><input id="r-max" type="number" min="1" max="20" inputmode="numeric"></label>
+          <label class="field"><span>Boka dagar fram</span><input id="r-horizon" type="number" min="1" max="365" inputmode="numeric"></label>
+        </div>
+        <p id="rules-summary" class="rules-summary"></p>
+        <p id="rules-error" class="form-error" role="alert"></p>
+        <div class="form-actions">
+          <button id="rules-reset" class="btn ghost small" type="button">Återställ standard</button>
+          <button class="btn primary" type="submit">Spara regler</button>
+        </div>
+      </form>
+    </section>
+
     <section class="panel" aria-labelledby="pw-admin-title">
       <h2 id="pw-admin-title">Lösenord</h2>
       <p class="muted small">Ge en lägenhet ett nytt lösenord om någon har glömt sitt eller när nya boende flyttar in. Lägenheten loggas då ut på alla enheter.</p>
       <ul id="pw-admin-list" class="pw-admin-list"></ul>
     </section>
+    </div>
   </main>
 
   <main id="resident-view" class="layout">
@@ -99,7 +125,7 @@
       <div id="grid" class="grid" aria-live="polite"></div>
       <div class="legend">
         <span><i class="sw sw-free"></i>Ledigt – klicka på starttid</span>
-        <span><i class="sw sw-short"></i>Bara kort pass får plats</span>
+        <span id="legend-short"><i class="sw sw-short"></i>Bara kort pass får plats</span>
         <span><i class="sw sw-mine"></i>Ditt pass – dra för att flytta</span>
         <span><i class="sw sw-taken"></i>Bokat</span>
       </div>

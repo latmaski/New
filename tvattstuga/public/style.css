@@ -51,7 +51,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 .field { display: flex; flex-direction: column; gap: 6px; margin: 16px 0 0; font-size: 13px; font-weight: 600; color: var(--ink-2); }
 .field input { font: inherit; font-size: 16px; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); }
-.field input:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+.field select { font: inherit; font-size: 15px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); }
+.field small { font-weight: 400; color: var(--ink-3); font-size: 12px; }
+.field input:focus, .field select:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
 .form-error { color: var(--error); font-size: 13.5px; min-height: 1.4em; margin: 10px 0; }
 
 /* Inloggning */
@@ -176,6 +178,12 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
 .move-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; padding: 10px 12px; border-radius: 12px; background: var(--accent-soft); border: 1px dashed var(--accent); font-size: 14px; scroll-margin-top: 12px; }
 
 /* Hyresvärd */
+.admin-side { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.rules-form .field { margin-top: 12px; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.rules-summary { margin: 14px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line-soft); font-size: 13px; color: var(--ink-2); }
+.form-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cell.closed { background: var(--surface-2); opacity: .6; cursor: default; }
 .link-btn { display: block; margin: 16px auto 0; background: none; border: 0; color: var(--accent); font-size: 13.5px; text-decoration: underline; text-underline-offset: 3px; }
 .admin-login-label { margin: 0; font-weight: 600; font-size: 15px; }
 .small { font-size: 13px; }

@@ -112,6 +112,45 @@ function tvatt_admin_stats(array $bookings, array $now, array $config): array
     return ['now' => $now, 'passHours' => $config['passHours'], 'apartments' => array_values($rows)];
 }
 
+const TVATT_RULE_KEYS = ['openHour', 'closeHour', 'passHours', 'minPassHours', 'maxActiveBookings', 'bookingHorizonDays'];
+
+// Hyresvärdens regler (sparade i databasen) går före standardvärdena i config.php.
+function tvatt_effective_config(array $config, array $settings): array
+{
+    foreach (TVATT_RULE_KEYS as $key) {
+        if (isset($settings[$key])) $config[$key] = (int) $settings[$key];
+    }
+    if (!isset($config['minPassHours'])) $config['minPassHours'] = $config['passHours'];
+    return $config;
+}
+
+function tvatt_rules(array $config): array
+{
+    return array_intersect_key($config, array_flip(TVATT_RULE_KEYS));
+}
+
+// Returnerar ['error' => ?string, 'rules' => array].
+function tvatt_validate_rules($body): array
+{
+    $fail = function (string $error) { return ['error' => $error, 'rules' => []]; };
+    if (!is_array($body)) return $fail('Ogiltig förfrågan.');
+    $r = [];
+    foreach (TVATT_RULE_KEYS as $key) {
+        if (!isset($body[$key]) || !is_int($body[$key])) return $fail('Alla fält måste vara heltal.');
+        $r[$key] = $body[$key];
+    }
+    if ($r['openHour'] < 0 || $r['openHour'] > 23) return $fail('Öppningstiden måste vara mellan 00 och 23.');
+    if ($r['closeHour'] < 1 || $r['closeHour'] > 24) return $fail('Stängningstiden måste vara mellan 01 och 24.');
+    if ($r['closeHour'] <= $r['openHour']) return $fail('Stängningstiden måste vara efter öppningstiden.');
+    if ($r['passHours'] < 1 || $r['passHours'] > $r['closeHour'] - $r['openHour']) {
+        return $fail('Passets längd måste vara minst 1 timme och rymmas inom öppettiden.');
+    }
+    if ($r['minPassHours'] < 1 || $r['minPassHours'] > $r['passHours']) return $fail('Kortaste pass måste vara mellan 1 timme och passets längd.');
+    if ($r['maxActiveBookings'] < 1 || $r['maxActiveBookings'] > 20) return $fail('Max antal pass måste vara mellan 1 och 20.');
+    if ($r['bookingHorizonDays'] < 1 || $r['bookingHorizonDays'] > 365) return $fail('Hur långt fram man får boka måste vara mellan 1 och 365 dagar.');
+    return ['error' => null, 'rules' => $r];
+}
+
 function tvatt_sort_bookings(array $bookings): array
 {
     usort($bookings, function ($a, $b) {
@@ -129,14 +168,15 @@ function tvatt_run(array $config): void
     try {
         $store = new TvattStore(tvatt_data_dir($config));
         tvatt_sync_users($store, $config);
-        tvatt_dispatch($store, $config);
+        tvatt_dispatch($store, tvatt_effective_config($config, $store->data['settings'] ?? []), $config);
     } catch (Throwable $e) {
         error_log((string) $e);
         tvatt_fail(500, 'Något gick fel på servern.');
     }
 }
 
-function tvatt_dispatch(TvattStore $store, array $config)
+// $config = gällande regler, $defaults = config.php utan hyresvärdens ändringar.
+function tvatt_dispatch(TvattStore $store, array $config, array $defaults)
 {
     $ts = tvatt_now_ts();
     $now = tvatt_local_now($config['timezone'], $ts);
@@ -196,7 +236,7 @@ function tvatt_dispatch(TvattStore $store, array $config)
         return tvatt_send(200, ['ok' => true]);
     }
 
-    $known = ['/me', '/password', '/bookings', '/admin/stats', '/admin/reset-password'];
+    $known = ['/me', '/password', '/bookings', '/admin/stats', '/admin/reset-password', '/admin/rules'];
     if (!in_array($route, $known, true) && !preg_match('#^/bookings/[\w-]+$#', $route)) return tvatt_fail(404, 'Hittades inte.');
     if (!$me) return tvatt_fail(401, 'Du är inte inloggad.');
     $isAdmin = $me === $adminId;
@@ -211,6 +251,22 @@ function tvatt_dispatch(TvattStore $store, array $config)
         if (!$isAdmin) return tvatt_fail(403, 'Endast för hyresvärden.');
         if ($method === 'GET' && $route === '/admin/stats') {
             return tvatt_send(200, tvatt_admin_stats($store->data['bookings'], $now, $config));
+        }
+        if ($route === '/admin/rules') {
+            $defaultRules = tvatt_rules(tvatt_effective_config($defaults, []));
+            if ($method === 'GET') return tvatt_send(200, ['rules' => tvatt_rules($config), 'defaults' => $defaultRules]);
+            if ($method === 'DELETE') {
+                unset($store->data['settings']);
+                $store->save();
+                return tvatt_send(200, ['rules' => $defaultRules, 'defaults' => $defaultRules]);
+            }
+            if ($method === 'POST') {
+                $check = tvatt_validate_rules(tvatt_read_json());
+                if ($check['error']) return tvatt_fail(400, $check['error']);
+                $store->data['settings'] = $check['rules'];
+                $store->save();
+                return tvatt_send(200, ['rules' => $check['rules'], 'defaults' => $defaultRules]);
+            }
         }
         if ($method === 'POST' && $route === '/admin/reset-password') {
             $body = tvatt_read_json();
@@ -243,6 +299,7 @@ function tvatt_dispatch(TvattStore $store, array $config)
         $mine = tvatt_active_bookings_for($store->data['bookings'], $me, $now, $config);
         return tvatt_send(200, [
             'now' => $now,
+            'rules' => tvatt_rules($config),
             'bookings' => array_map($public, tvatt_sort_bookings(array_values($inRange))),
             'mine' => array_map($public, tvatt_sort_bookings($mine)),
         ]);

@@ -11,7 +11,7 @@ Bokningsverktyg för tvättstugan. Det är gjort för att köras på ett vanligt
 - Pass får inte överlappa. Man kan boka upp till 28 dagar fram och avboka sina egna pass.
 - Man kan **flytta** ett eget pass som inte har börjat. Antingen drar man passet i kalendern, eller så klickar man på det (eller på *Ändra* under "Mina pass") och väljer en ny starttid. Det fungerar även när båda passen är bokade.
 
-Reglerna (bland annat `minPassHours` för kortaste pass) och lägenheternas namn ställs in i `public/config.php`.
+Reglerna ovan är standardvärden. Hyresvärden kan ändra dem i adminvyn, se nedan. Standardvärdena och lägenheternas namn ställs in i `public/config.php`.
 
 ## Hyresvärd (admin)
 
@@ -19,6 +19,7 @@ Under inloggningen finns länken *"Hyresvärd? Logga in här"*. Den leder till a
 
 - se **statistik** över hur många pass varje lägenhet har bokat, för denna månad, förra månaden, i år, de senaste 12 månaderna eller totalt, och hur många kommande pass varje lägenhet har.
 - ge en lägenhet ett **nytt lösenord** om någon har glömt sitt eller flyttar. Lösenordet visas en gång och lägenheten loggas ut på alla enheter. Vid flytt kan man även kryssa i att lägenhetens kommande pass ska avbokas.
+- ändra **bokningsreglerna**: öppettider, passets längd, kortaste pass (eller bara hela pass), max antal bokade pass per lägenhet och hur långt fram man får boka. Ändringarna gäller direkt för nya bokningar och flyttar. Redan bokade pass står kvar som de är och visas även om de hamnar utanför nya öppettider. Med *Återställ standard* gäller värdena i `config.php` igen.
 - byta sitt eget lösenord under "Byt lösenord".
 
 Hyresvärden kan inte boka pass. Avbokade pass räknas inte i statistiken. Timmarna räknas efter passens faktiska längd.
@@ -43,7 +44,7 @@ Kräver PHP 7.3 eller senare.
 
 ### Data och säkerhetskopiering
 
-Bokningar, lösenordshashar och den hemliga nyckeln för sessionerna ligger i `tvatt-data/db.json`. Säkerhetskopiera den filen. Om mappen bredvid `public_html` inte går att skriva till används `public_html/tvatt/data/` i stället. Den skyddas med `.htaccess`.
+Bokningar, hyresvärdens regler, lösenordshashar och den hemliga nyckeln för sessionerna ligger i `tvatt-data/db.json`. Säkerhetskopiera den filen. Om mappen bredvid `public_html` inte går att skriva till används `public_html/tvatt/data/` i stället. Den skyddas med `.htaccess`.
 
 Uppdatera appen genom att ladda upp `public/` igen. Data ligger i en egen mapp och påverkas inte.
 
