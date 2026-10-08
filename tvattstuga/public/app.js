@@ -170,7 +170,7 @@ function renderMine() {
   for (const b of state.mine) {
     const { day, time } = describe(b);
     const li = document.createElement('li');
-    li.innerHTML = '<div class="when"><b></b><span></span></div><div class="actions"><button class="btn ghost small" type="button" data-act="move">Ändra</button><button class="btn ghost small danger" type="button" data-act="cancel">Avboka</button></div>';
+    li.innerHTML = '<div class="when"><b></b><span></span></div><div class="actions"><a class="btn ghost small" data-act="cal">Kalender</a><button class="btn ghost small" type="button" data-act="move">Ändra</button><button class="btn ghost small danger" type="button" data-act="cancel">Avboka</button></div>';
     li.querySelector('b').textContent = day;
     const len = b.endHour - b.startHour;
     li.querySelector('span').textContent = len < state.config.passHours ? `${time} · ${len} h` : time;
@@ -179,6 +179,7 @@ function renderMine() {
     if (isMovable(b)) moveBtn.addEventListener('click', () => startMoveMode(b));
     else moveBtn.remove();
     li.querySelector('[data-act="cancel"]').addEventListener('click', () => cancelBooking(b));
+    setCalendarLink(li.querySelector('[data-act="cal"]'), b);
     list.append(li);
   }
 }
@@ -395,6 +396,77 @@ function confirmBooking(date, startHour, status) {
     load().catch((err) => toast(err.message, true));
   }, { once: true });
 }
+
+// ---------- Påminnelser / kalender ----------
+const isAndroid = /Android/i.test(navigator.userAgent);
+const reminderLabel = (m) => (m >= 1440 ? 'Dagen före' : m >= 60 ? `${m / 60} ${m === 60 ? 'timme' : 'timmar'} före` : `${m} minuter före`);
+
+// Ett enskilt pass: .ics-fil (iPhone, Mac, Outlook) eller Google Kalender på Android.
+function setCalendarLink(a, b) {
+  a.title = 'Lägg till passet i din kalender';
+  if (!isAndroid) {
+    a.href = `api/bookings/${b.id}.ics`;
+    return;
+  }
+  // Lokal svensk tid med ctz, oberoende av telefonens tidszon.
+  const local = (date, hour) => `${date.replace(/-/g, '')}T${pad(hour)}0000`;
+  const q = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: 'Tvättstugan',
+    dates: `${local(b.date, b.startHour)}/${local(b.date, b.endHour)}`,
+    ctz: 'Europe/Stockholm',
+    location: state.config.name,
+    details: `Ditt tvättpass ${pad(b.startHour)}:00–${pad(b.endHour)}:00. ${location.origin}${location.pathname}`,
+  });
+  a.href = `https://calendar.google.com/calendar/render?${q}`;
+  a.target = '_blank';
+  a.rel = 'noopener';
+}
+
+function renderReminders(data) {
+  state.reminders = data;
+  fillSelect('remind-minutes', data.options, reminderLabel, data.reminderMinutes);
+  const webcal = data.feedUrl.replace(/^https?:/, 'webcal:');
+  $('remind-apple').href = webcal;
+  $('remind-google').href = `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcal)}`;
+}
+
+$('btn-remind').addEventListener('click', async () => {
+  try {
+    renderReminders(await api('api/reminders'));
+    $('remind-dialog').showModal();
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
+$('remind-minutes').addEventListener('change', async () => {
+  try {
+    renderReminders(await api('api/reminders', { method: 'POST', body: { reminderMinutes: Number($('remind-minutes').value) } }));
+    toast(`Påminnelse ${reminderLabel(state.reminders.reminderMinutes).toLowerCase()} passet.`);
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
+$('remind-copy').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(state.reminders.feedUrl);
+    toast('Länken är kopierad.');
+  } catch {
+    window.prompt('Kopiera länken:', state.reminders.feedUrl);
+  }
+});
+
+$('remind-new').addEventListener('click', async () => {
+  if (!window.confirm('Skapa en ny kalenderlänk? Den gamla slutar fungera och behöver tas bort ur kalendern.')) return;
+  try {
+    renderReminders(await api('api/reminders/new-link', { method: 'POST' }));
+    toast('Ny länk skapad – lägg till den i kalendern igen.');
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
 
 // ---------- Flytta pass ----------
 function renderMoveBanner() {

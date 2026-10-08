@@ -73,6 +73,8 @@ function tvatt_admin_reset(TvattStore $store, string $apartmentId, bool $cancelU
     $store->data['users'][$apartmentId] = tvatt_new_user($password, $version);
     $cancelled = 0;
     if ($cancelUpcoming) {
+        // Nya boende: den gamla kalenderlänken ska inte längre visa något.
+        unset($store->data['calendars'][$apartmentId]);
         $keep = [];
         foreach ($store->data['bookings'] as $b) {
             $isUpcoming = (string) $b['apartmentId'] === $apartmentId
@@ -236,7 +238,21 @@ function tvatt_dispatch(TvattStore $store, array $config, array $defaults)
         return tvatt_send(200, ['ok' => true]);
     }
 
-    $known = ['/me', '/password', '/bookings', '/admin/stats', '/admin/reset-password', '/admin/rules'];
+    // Kalenderprenumeration: skyddas av den hemliga länken, inte av inloggning.
+    if ($method === 'GET' && preg_match('#^/calendar/([a-f0-9]{32})\.ics$#', $route, $m)) {
+        $id = tvatt_calendar_by_token($store, $m[1]);
+        if ($id === null || !isset($names[$id])) return tvatt_fail(404, 'Kalendern finns inte. Hämta en ny länk i appen.');
+        $cal = $store->data['calendars'][$id];
+        $from = tvatt_add_days($now['date'], -30);
+        $mine = array_filter($store->data['bookings'], function ($b) use ($id, $from) {
+            return (string) $b['apartmentId'] === $id && $b['date'] >= $from;
+        });
+        $ics = tvatt_ics(tvatt_sort_bookings(array_values($mine)), 'Tvättstugan – ' . $names[$id], (int) $cal['reminderMinutes'], $config, $ts, true);
+        return tvatt_send_ics($ics, null);
+    }
+
+    $known = ['/me', '/password', '/bookings', '/admin/stats', '/admin/reset-password', '/admin/rules', '/reminders', '/reminders/new-link'];
+    if (preg_match('#^/bookings/[\w-]+\.ics$#', $route)) $known[] = $route;
     if (!in_array($route, $known, true) && !preg_match('#^/bookings/[\w-]+$#', $route)) return tvatt_fail(404, 'Hittades inte.');
     if (!$me) return tvatt_fail(401, 'Du är inte inloggad.');
     $isAdmin = $me === $adminId;
@@ -289,6 +305,39 @@ function tvatt_dispatch(TvattStore $store, array $config, array $defaults)
         $store->save();
         tvatt_set_cookie(tvatt_session_token($store->data['secret'], $me, $version, $ts), $ts + TVATT_SESSION_DAYS * 86400);
         return tvatt_send(200, ['ok' => true]);
+    }
+
+    if ($route === '/reminders' || $route === '/reminders/new-link') {
+        if ($isAdmin) return tvatt_fail(403, 'Hyresvärden har inga pass.');
+        if ($route === '/reminders/new-link' && $method === 'POST') {
+            unset($store->data['calendars'][$me]['token']);
+        } elseif ($route === '/reminders' && $method === 'POST') {
+            $body = tvatt_read_json();
+            $minutes = $body['reminderMinutes'] ?? null;
+            if (!in_array($minutes, TVATT_REMINDER_OPTIONS, true)) return tvatt_fail(400, 'Ogiltig påminnelsetid.');
+            tvatt_calendar_for($store, $me);
+            $store->data['calendars'][$me]['reminderMinutes'] = $minutes;
+            $store->save();
+        } elseif ($method !== 'GET') {
+            return tvatt_fail(405, 'Metoden stöds inte.');
+        }
+        $cal = tvatt_calendar_for($store, $me);
+        return tvatt_send(200, [
+            'feedUrl' => tvatt_base_url() . 'api/calendar/' . $cal['token'] . '.ics',
+            'reminderMinutes' => (int) $cal['reminderMinutes'],
+            'options' => TVATT_REMINDER_OPTIONS,
+        ]);
+    }
+
+    if ($method === 'GET' && preg_match('#^/bookings/([\w-]+)\.ics$#', $route, $m)) {
+        $booking = null;
+        foreach ($store->data['bookings'] as $b) {
+            if ($b['id'] === $m[1]) { $booking = $b; break; }
+        }
+        if (!$booking || (string) $booking['apartmentId'] !== $me) return tvatt_fail(404, 'Bokningen finns inte.');
+        $cal = tvatt_calendar_for($store, $me);
+        $ics = tvatt_ics([$booking], 'Tvättstugan', (int) $cal['reminderMinutes'], $config, $ts, false);
+        return tvatt_send_ics($ics, 'tvattpass-' . $booking['date'] . '.ics');
     }
 
     if ($method === 'GET' && $route === '/bookings') {

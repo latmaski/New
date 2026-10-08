@@ -49,7 +49,10 @@ async function setup(localTime = '2026-10-07T12:30:00+02:00') {
       });
       const set = res.headers.get('set-cookie');
       if (set) cookie = set.split(';')[0];
-      return { status: res.status, body: await res.json().catch(() => null), headers: res.headers };
+      const text = await res.text();
+      let json = null;
+      try { json = JSON.parse(text); } catch { /* inte JSON, t.ex. kalenderfil */ }
+      return { status: res.status, body: json, text, headers: res.headers };
     };
   };
   const login = async (id) => {

@@ -104,6 +104,7 @@
         <span id="mine-count" class="count"></span>
       </div>
       <ul id="mine-list" class="mine-list"></ul>
+      <button id="btn-remind" class="btn ghost remind-btn" type="button">🔔 Påminnelser i mobilens kalender</button>
       <p class="rules" id="rules-text"></p>
     </section>
 
@@ -142,6 +143,22 @@
       <button class="btn ghost" value="cancel">Avbryt</button>
       <button id="confirm-ok" class="btn primary" value="ok">Boka</button>
     </div>
+  </form>
+</dialog>
+
+<dialog id="remind-dialog" class="dialog">
+  <form method="dialog">
+    <h3>Påminnelser i din kalender</h3>
+    <p class="muted">Lägg till tvättstugan i mobilens kalender en gång. Sedan dyker dina pass upp där automatiskt, med en påminnelse innan. Det gäller även när du bokar, flyttar eller avbokar.</p>
+    <label class="field"><span>Påminn mig</span><select id="remind-minutes"></select></label>
+    <div class="remind-links">
+      <a id="remind-apple" class="btn ghost" href="#">iPhone / Mac</a>
+      <a id="remind-google" class="btn ghost" href="#" target="_blank" rel="noopener">Google Kalender</a>
+      <button id="remind-copy" class="btn ghost" type="button">Kopiera länk</button>
+    </div>
+    <p class="muted small">Google Kalender kan ta några timmar på sig att visa ändringar och visar inte alltid påminnelser för prenumererade kalendrar. Använd då knappen <b>Kalender</b> vid varje pass under Mina pass.</p>
+    <p class="muted small">Länken är personlig. Om någon annan har fått den kan du <button id="remind-new" class="link-inline" type="button">skapa en ny länk</button>. Då slutar den gamla att fungera.</p>
+    <div class="dialog-actions"><button class="btn primary" value="ok">Klar</button></div>
   </form>
 </dialog>
 
