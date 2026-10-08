@@ -1,0 +1,11 @@
+{
+  "name": "tvattstuga-stora-pukevagen-12",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Bokning av tvättstugan på Stora Pukevägen 12 (PHP, för webbhotell)",
+  "scripts": {
+    "dev": "php -S localhost:8000 -t public dev-router.php",
+    "test": "node --test test/*.test.js",
+    "paket": "rm -f tvattstuga-webbhotell.zip && cd public && zip -qr ../tvattstuga-webbhotell.zip . -x 'data/*'"
+  }
+}
