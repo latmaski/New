@@ -93,7 +93,7 @@ function tvatt_ics(array $bookings, string $calName, int $reminderMinutes, array
             'DTEND:' . tvatt_ics_utc($b['date'], (int) $b['startHour'] + $hours, $config['timezone']),
             'SUMMARY:' . tvatt_ics_escape('Tvättstugan ' . $time),
             'LOCATION:' . tvatt_ics_escape($config['name']),
-            'DESCRIPTION:' . tvatt_ics_escape("Ditt tvättpass $time. Ändra eller avboka: " . tvatt_base_url()),
+            'DESCRIPTION:' . tvatt_ics_escape("Ditt tvättpass $time." . (empty($b['note']) ? '' : "\nAnteckning: {$b['note']}") . "\nÄndra eller avboka: " . tvatt_base_url()),
             'URL:' . tvatt_base_url(),
             'BEGIN:VALARM', 'ACTION:DISPLAY',
             'DESCRIPTION:' . tvatt_ics_escape('Tvättstugan ' . tvatt_reminder_text($reminderMinutes) . " ($time)"),

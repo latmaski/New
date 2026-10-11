@@ -153,6 +153,26 @@ function tvatt_validate_rules($body): array
     return ['error' => null, 'rules' => $r];
 }
 
+const TVATT_NOTE_MAX = 200;   // anteckning på ett pass
+const TVATT_POST_MAX = 500;   // inlägg på anslagstavlan
+const TVATT_POSTS_SHOWN = 50;
+
+// Städar fri text från de boende: tar bort styrtecken, normaliserar radbrytningar.
+// Returnerar ['error' => ?string, 'text' => string].
+function tvatt_clean_text($text, int $max, bool $multiline): array
+{
+    if ($text === null) $text = '';
+    if (!is_string($text)) return ['error' => 'Ogiltig text.', 'text' => ''];
+    $text = str_replace(["\r\n", "\r"], "\n", $text);
+    $text = preg_replace('/[\x00-\x09\x0B-\x1F\x7F]/u', '', $text);
+    if ($text === null) return ['error' => 'Ogiltig text.', 'text' => ''];
+    if (!$multiline) $text = str_replace("\n", ' ', $text);
+    $text = trim(preg_replace("/\n{3,}/", "\n\n", $text));
+    $length = function_exists('mb_strlen') ? mb_strlen($text, 'UTF-8') : strlen($text);
+    if ($length > $max) return ['error' => "Texten får vara högst $max tecken.", 'text' => ''];
+    return ['error' => null, 'text' => $text];
+}
+
 function tvatt_sort_bookings(array $bookings): array
 {
     usort($bookings, function ($a, $b) {
@@ -196,7 +216,11 @@ function tvatt_dispatch(TvattStore $store, array $config, array $defaults)
             'endHour' => $b['startHour'] + tvatt_booking_hours($b, $config), 'apartmentId' => (string) $b['apartmentId'],
             'apartmentName' => $names[$b['apartmentId']] ?? (string) $b['apartmentId'],
             'mine' => (string) $b['apartmentId'] === $me,
+            'note' => (string) ($b['note'] ?? ''),
         ];
+    };
+    $authorName = function (string $id) use ($names, $config) {
+        return $id === $config['admin']['id'] ? $config['admin']['name'] : ($names[$id] ?? $id);
     };
 
     // Öppna anrop
@@ -251,8 +275,8 @@ function tvatt_dispatch(TvattStore $store, array $config, array $defaults)
         return tvatt_send_ics($ics, null);
     }
 
-    $known = ['/me', '/password', '/bookings', '/admin/stats', '/admin/reset-password', '/admin/rules', '/reminders', '/reminders/new-link'];
-    if (preg_match('#^/bookings/[\w-]+\.ics$#', $route)) $known[] = $route;
+    $known = ['/me', '/password', '/bookings', '/admin/stats', '/admin/reset-password', '/admin/rules', '/reminders', '/reminders/new-link', '/board'];
+    if (preg_match('#^/(bookings/[\w-]+\.ics|bookings/[\w-]+/note|board/[\w-]+)$#', $route)) $known[] = $route;
     if (!in_array($route, $known, true) && !preg_match('#^/bookings/[\w-]+$#', $route)) return tvatt_fail(404, 'Hittades inte.');
     if (!$me) return tvatt_fail(401, 'Du är inte inloggad.');
     $isAdmin = $me === $adminId;
@@ -340,6 +364,56 @@ function tvatt_dispatch(TvattStore $store, array $config, array $defaults)
         return tvatt_send_ics($ics, 'tvattpass-' . $booking['date'] . '.ics');
     }
 
+    // Anslagstavla: alla inloggade (även hyresvärden) läser och skriver.
+    if ($route === '/board') {
+        if ($method === 'POST') {
+            $body = tvatt_read_json();
+            $clean = tvatt_clean_text($body['text'] ?? null, TVATT_POST_MAX, true);
+            if ($clean['error']) return tvatt_fail(400, $clean['error']);
+            if ($clean['text'] === '') return tvatt_fail(400, 'Skriv något först.');
+            $store->data['board'][] = ['id' => bin2hex(random_bytes(8)), 'author' => $me, 'text' => $clean['text'], 'createdAt' => $ts];
+            $store->save();
+        } elseif ($method !== 'GET') {
+            return tvatt_fail(405, 'Metoden stöds inte.');
+        }
+        $posts = array_slice(array_reverse($store->data['board'] ?? []), 0, TVATT_POSTS_SHOWN);
+        return tvatt_send($method === 'POST' ? 201 : 200, ['posts' => array_map(function ($p) use ($me, $isAdmin, $authorName) {
+            return [
+                'id' => $p['id'], 'author' => $p['author'], 'authorName' => $authorName((string) $p['author']),
+                'text' => $p['text'], 'createdAt' => gmdate('c', (int) $p['createdAt']),
+                'mine' => $p['author'] === $me, 'canDelete' => $p['author'] === $me || $isAdmin,
+            ];
+        }, $posts)]);
+    }
+    if (preg_match('#^/board/([\w-]+)$#', $route, $m)) {
+        if ($method !== 'DELETE') return tvatt_fail(405, 'Metoden stöds inte.');
+        foreach ($store->data['board'] ?? [] as $i => $p) {
+            if ($p['id'] !== $m[1]) continue;
+            if ($p['author'] !== $me && !$isAdmin) return tvatt_fail(403, 'Du kan bara ta bort dina egna inlägg.');
+            array_splice($store->data['board'], $i, 1);
+            $store->save();
+            return tvatt_send(200, ['ok' => true]);
+        }
+        return tvatt_fail(404, 'Inlägget finns inte.');
+    }
+
+    // Anteckning på ett eget pass som inte är slut. Tom text tar bort den.
+    if (preg_match('#^/bookings/([\w-]+)/note$#', $route, $m)) {
+        if ($method !== 'POST') return tvatt_fail(405, 'Metoden stöds inte.');
+        foreach ($store->data['bookings'] as $i => $b) {
+            if ($b['id'] !== $m[1]) continue;
+            if ((string) $b['apartmentId'] !== $me) return tvatt_fail(403, 'Du kan bara skriva på dina egna pass.');
+            if (!tvatt_is_active($b, $now, $config)) return tvatt_fail(409, 'Passet har redan passerat.');
+            $clean = tvatt_clean_text(tvatt_read_json()['note'] ?? null, TVATT_NOTE_MAX, false);
+            if ($clean['error']) return tvatt_fail(400, $clean['error']);
+            if ($clean['text'] === '') unset($store->data['bookings'][$i]['note']);
+            else $store->data['bookings'][$i]['note'] = $clean['text'];
+            $store->save();
+            return tvatt_send(200, $public($store->data['bookings'][$i]));
+        }
+        return tvatt_fail(404, 'Bokningen finns inte.');
+    }
+
     if ($method === 'GET' && $route === '/bookings') {
         $from = $_GET['from'] ?? $now['date'];
         $to = $_GET['to'] ?? (tvatt_is_valid_date($from) ? tvatt_add_days($from, 6) : '');
@@ -360,12 +434,15 @@ function tvatt_dispatch(TvattStore $store, array $config, array $defaults)
         if (!$body) return tvatt_fail(400, 'Ogiltig förfrågan.');
         $date = $body['date'] ?? null;
         $startHour = $body['startHour'] ?? null;
+        $note = tvatt_clean_text($body['note'] ?? null, TVATT_NOTE_MAX, false);
+        if ($note['error']) return tvatt_fail(400, $note['error']);
         $check = tvatt_check_booking($store->data['bookings'], $me, $date, $startHour, $body['hours'] ?? null, $now, $config);
         if ($check['error']) return tvatt_fail(409, $check['error']);
         $booking = [
             'id' => bin2hex(random_bytes(12)), 'apartmentId' => $me, 'date' => $date, 'startHour' => $startHour,
             'hours' => $check['hours'], 'createdAt' => gmdate('c', $ts),
         ];
+        if ($note['text'] !== '') $booking['note'] = $note['text'];
         $store->data['bookings'][] = $booking;
         $store->save();
         return tvatt_send(201, $public($booking));

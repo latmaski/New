@@ -11,6 +11,11 @@ Bokningsverktyg för tvättstugan. Det är gjort för att köras på ett vanligt
 - Pass får inte överlappa. Man kan boka upp till 28 dagar fram och avboka sina egna pass.
 - Man kan **flytta** ett eget pass som inte har börjat. Antingen drar man passet i kalendern, eller så klickar man på det (eller på *Ändra* under "Mina pass") och väljer en ny starttid. Det fungerar även när båda passen är bokade.
 
+### Anteckningar och anslagstavla
+
+- **Anteckning på ett pass:** man kan skriva en kort anteckning på sitt pass, högst 200 tecken, till exempel "Tvättar mattor". Det går när man bokar eller senare via raden under passet i "Mina pass". Anteckningen syns för alla i kalendern, och de andra klickar på passet för att läsa hela texten. Den följer med när passet flyttas.
+- **Anslagstavla:** under "Mina pass", och i hyresvärdens vy, finns en anslagstavla. Där kan alla skriva inlägg på högst 500 tecken, som visas med namn, datum och tid. Man kan ta bort sina egna inlägg, och hyresvärden kan ta bort alla.
+
 ### Påminnelser
 
 Under "Mina pass" finns knappen **Påminnelser i mobilens kalender**. Varje lägenhet har en personlig kalenderlänk som läggs in en gång i iPhone/Mac-kalendern eller Google Kalender. Sedan visas lägenhetens pass där automatiskt, med en påminnelse vid den tid man valt: 15 minuter, 30 minuter, 1, 2 eller 3 timmar före, eller dagen före. Bokningar, flyttar och avbokningar följer med. Knappen *Kalender* vid varje pass lägger in ett enskilt pass direkt, via en .ics-fil eller Google Kalender på Android.

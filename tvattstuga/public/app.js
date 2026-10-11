@@ -179,6 +179,13 @@ function renderMine() {
     if (isMovable(b)) moveBtn.addEventListener('click', () => startMoveMode(b));
     else moveBtn.remove();
     li.querySelector('[data-act="cancel"]').addEventListener('click', () => cancelBooking(b));
+    const noteBtn = document.createElement('button');
+    noteBtn.type = 'button';
+    noteBtn.className = `note-line${b.note ? '' : ' empty-note'}`;
+    noteBtn.textContent = b.note ? `”${b.note}” ✎` : '+ Lägg till anteckning';
+    noteBtn.title = 'Anteckningen syns för alla i kalendern';
+    noteBtn.addEventListener('click', () => editNote(b));
+    li.append(noteBtn);
     setCalendarLink(li.querySelector('[data-act="cal"]'), b);
     list.append(li);
   }
@@ -339,8 +346,19 @@ function renderGrid() {
     const ended = hourIndex(b.date, b.endHour) <= nowIdx;
     el.className = `booking ${b.mine ? 'mine' : 'taken'}${ended ? ' ended' : ''}`;
     el.innerHTML = '<b></b><span></span>';
-    el.querySelector('b').textContent = b.mine ? 'Ditt pass' : b.apartmentName;
+    el.querySelector('b').textContent = (b.mine ? 'Ditt pass' : b.apartmentName) + (b.note ? ' 💬' : '');
     const len = b.endHour - b.startHour;
+    if (b.note) {
+      const note = document.createElement('em');
+      note.className = 'note';
+      note.textContent = b.note;
+      el.append(note);
+      el.classList.add('has-note');
+      if (!b.mine) {
+        el.title = `${b.apartmentName}: ${b.note}`;
+        el.addEventListener('click', () => showNote(b));
+      }
+    }
     el.querySelector('span').textContent = `${pad(b.startHour)}–${pad(b.endHour)}${len < passHours ? ` · ${len} h` : ''}`;
     if (len < passHours) el.classList.add('short-pass');
     if (isMovable(b)) {
@@ -382,13 +400,15 @@ function confirmBooking(date, startHour, status) {
   $('confirm-ok').textContent = status.kind === 'short' ? `Boka ${hours} h` : 'Boka';
   $('confirm-title').textContent = `Boka ${fmt(date, { weekday: 'long', day: 'numeric', month: 'long' })}?`;
   $('confirm-text').textContent = `Tvättstugan blir din kl ${pad(startHour)}:00–${pad(endHour)}:00.`;
+  $('confirm-note-field').hidden = false;
+  $('confirm-note').value = '';
   const dialog = $('confirm-dialog');
   dialog.returnValue = '';
   dialog.showModal();
   dialog.addEventListener('close', async () => {
     if (dialog.returnValue !== 'ok') return;
     try {
-      await api('api/bookings', { method: 'POST', body: { date, startHour, hours } });
+      await api('api/bookings', { method: 'POST', body: { date, startHour, hours, note: $('confirm-note').value } });
       toast(`Bokat ${pad(startHour)}:00–${pad(endHour)}:00.`);
     } catch (err) {
       toast(err.message, true);
@@ -396,6 +416,131 @@ function confirmBooking(date, startHour, status) {
     load().catch((err) => toast(err.message, true));
   }, { once: true });
 }
+
+// Enter i anteckningsfältet ska boka, inte välja dialogens första knapp (Avbryt).
+$('confirm-note').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    $('confirm-dialog').close('ok');
+  }
+});
+
+// ---------- Anteckningar ----------
+function showNote(b) {
+  const { day, time } = describe(b);
+  $('note-view-title').textContent = b.apartmentName;
+  $('note-view-time').textContent = `${day.charAt(0).toUpperCase()}${day.slice(1)} ${time}`;
+  $('note-view-text').textContent = b.note;
+  $('note-view').showModal();
+}
+
+let editingNote = null;
+function editNote(b) {
+  editingNote = b;
+  const { day, time } = describe(b);
+  $('note-title').textContent = `Anteckning – ${day} ${time}`;
+  $('note-input').value = b.note || '';
+  $('note-error').textContent = '';
+  $('note-dialog').showModal();
+  $('note-input').focus();
+}
+
+$('note-cancel').addEventListener('click', () => $('note-dialog').close());
+$('note-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    const saved = await api(`api/bookings/${editingNote.id}/note`, { method: 'POST', body: { note: $('note-input').value } });
+    $('note-dialog').close();
+    toast(saved.note ? 'Anteckningen är sparad.' : 'Anteckningen är borttagen.');
+    load().catch((err) => toast(err.message, true));
+  } catch (err) {
+    $('note-error').textContent = err.message;
+  }
+});
+
+// ---------- Anslagstavla ----------
+const BOARD_SHOWN = 8;
+let boardExpanded = false;
+
+function postTime(iso) {
+  const d = new Date(iso);
+  const tz = { timeZone: 'Europe/Stockholm' };
+  const day = d.toLocaleDateString('sv-SE', tz);
+  const time = d.toLocaleTimeString('sv-SE', { ...tz, hour: '2-digit', minute: '2-digit' });
+  const today = new Date().toLocaleDateString('sv-SE', tz);
+  const yesterday = new Date(Date.now() - 86400000).toLocaleDateString('sv-SE', tz);
+  if (day === today) return `idag ${time}`;
+  if (day === yesterday) return `igår ${time}`;
+  const sameYear = day.slice(0, 4) === today.slice(0, 4);
+  return `${d.toLocaleDateString('sv-SE', { ...tz, weekday: 'short', day: 'numeric', month: 'short', year: sameYear ? undefined : 'numeric' })} ${time}`;
+}
+
+async function loadBoard() {
+  const data = await api('api/board');
+  renderBoard(data.posts);
+}
+
+function renderBoard(posts) {
+  const list = $('board-list');
+  list.innerHTML = '';
+  if (!posts.length) {
+    const li = document.createElement('li');
+    li.className = 'empty';
+    li.textContent = 'Inga inlägg ännu. Här kan du skriva något till grannarna eller hyresvärden.';
+    list.append(li);
+  }
+  const shown = boardExpanded ? posts : posts.slice(0, BOARD_SHOWN);
+  for (const p of shown) {
+    const li = document.createElement('li');
+    li.innerHTML = '<div class="meta"><span><b></b> · <time></time></span></div><p class="text"></p>';
+    li.querySelector('b').textContent = p.mine ? `${p.authorName} (du)` : p.authorName;
+    const time = li.querySelector('time');
+    time.dateTime = p.createdAt;
+    time.textContent = postTime(p.createdAt);
+    time.title = new Date(p.createdAt).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm' });
+    li.querySelector('.text').textContent = p.text;
+    if (p.canDelete) {
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'delete';
+      del.textContent = 'Ta bort';
+      del.addEventListener('click', () => deletePost(p));
+      li.querySelector('.meta').append(del);
+    }
+    list.append(li);
+  }
+  $('board-more').hidden = boardExpanded || posts.length <= BOARD_SHOWN;
+}
+
+async function deletePost(p) {
+  if (!window.confirm('Ta bort inlägget?')) return;
+  try {
+    await api(`api/board/${p.id}`, { method: 'DELETE' });
+    toast('Inlägget är borttaget.');
+  } catch (err) {
+    toast(err.message, true);
+  }
+  loadBoard().catch(() => {});
+}
+
+const updateBoardCount = () => {
+  const n = $('board-text').value.length;
+  $('board-count').textContent = n > 400 ? `${n}/500` : '';
+};
+$('board-text').addEventListener('input', updateBoardCount);
+$('board-more').addEventListener('click', () => { boardExpanded = true; loadBoard().catch(() => {}); });
+$('board-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    const data = await api('api/board', { method: 'POST', body: { text: $('board-text').value } });
+    $('board-text').value = '';
+    updateBoardCount();
+    renderBoard(data.posts);
+    toast('Inlägget är publicerat.');
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
 
 // ---------- Påminnelser / kalender ----------
 const isAndroid = /Android/i.test(navigator.userAgent);
@@ -504,6 +649,7 @@ function confirmMove(b, date, startHour, status) {
   setWarning(shortWarning(status, startHour));
   $('confirm-ok').textContent = status.kind === 'short' ? `Flytta (${status.hours} h)` : 'Flytta';
   $('confirm-title').textContent = 'Flytta ditt pass?';
+  $('confirm-note-field').hidden = true;
   $('confirm-text').textContent = `Från ${from.day} ${from.time} till ${to.day} ${to.time}.`;
   const dialog = $('confirm-dialog');
   dialog.returnValue = '';
@@ -828,6 +974,7 @@ $('rules-reset').addEventListener('click', async () => {
 function refresh() {
   if (!state.me || document.hidden) return;
   (state.me.isAdmin ? loadStats() : load()).catch(() => {});
+  loadBoard().catch(() => {});
 }
 
 // ---------- Start ----------
@@ -837,6 +984,11 @@ async function startApp() {
   $('me-name').textContent = me.apartmentName;
   $('admin-view').hidden = !me.isAdmin;
   $('resident-view').hidden = me.isAdmin;
+  // Anslagstavlan delas av båda vyerna; flytta den dit den hör hemma.
+  (me.isAdmin ? document.querySelector('.admin-side') : $('resident-side')).append($('board'));
+  $('board').hidden = false;
+  boardExpanded = false;
+  loadBoard().catch(() => {});
   if (me.isAdmin) {
     await Promise.all([loadStats(), loadRules()]);
     $('login').hidden = true;
