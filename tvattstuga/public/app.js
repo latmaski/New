@@ -253,8 +253,9 @@ function cellStatus(date, hour, ignoreId = state.moving && state.moving.id) {
   if (!ignoreId && state.mine.length >= maxActiveBookings) return { kind: 'blocked', reason: `Du har redan ${maxActiveBookings} pass bokade.` };
   const hours = Math.min(passHours, free.hours);
   if (hours === passHours) return { kind: 'start', hours };
-  // Korta pass bara i luckor där ett helt pass inte får plats.
-  if (free.limit - gapStart(date, hour, ignoreId) >= passHours) {
+  // Före ett annat pass: korta pass bara i luckor där ett helt pass inte får plats.
+  // I slutet av dagen (fram till stängning) är korta pass alltid tillåtna.
+  if (free.limit < closeHour && free.limit - gapStart(date, hour, ignoreId) >= passHours) {
     return { kind: 'blocked', reason: `Här får ett helt pass plats – välj en tidigare starttid (senast ${pad(free.limit - passHours)}:00).` };
   }
   const why = free.limit === closeHour ? `tvättstugan stänger ${pad(closeHour)}:00` : `nästa pass börjar ${pad(free.limit)}:00`;

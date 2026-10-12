@@ -72,8 +72,10 @@ test('inga korta pass där ett helt pass får plats i luckan', async (t) => {
   assert.equal((await book(a, '2026-10-22', 14)).status, 201); // 14–18, lucka 06–14
   for (const h of [11, 12, 13]) assert.match((await bookShort(b, '2026-10-22', h, 14 - h)).body.error, /helt pass plats.*10:00/);
   assert.equal((await book(b, '2026-10-22', 10)).body.endHour, 14);
-  // Helt ledig kväll: 19–23 går att boka, alltså inga korta pass 20–22.
-  assert.match((await bookShort(b, '2026-10-23', 20, 3)).body.error, /helt pass plats.*19:00/);
+  // I slutet av dagen är korta pass alltid tillåtna, även när 19–23 är ledigt.
+  assert.match((await book(b, '2026-10-23', 20)).body.error, /bara 3 h ledigt/);
+  const late = await bookShort(b, '2026-10-23', 20, 3);
+  assert.deepEqual([late.status, late.body.endHour], [201, 23]);
 });
 
 test('kortare pass före stängning', async (t) => {

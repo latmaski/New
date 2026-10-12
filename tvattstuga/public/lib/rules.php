@@ -116,9 +116,10 @@ function tvatt_check_booking(array $bookings, string $apartmentId, $date, $start
     if ($available <= 0) return $fail('Tiden krockar med en annan bokning.');
     if ($available < $min) return $fail("Det finns bara $available h ledigt här, minst $min h krävs.");
     $allowed = min($pass, $available);
-    // Korta pass bara i luckor där ett helt pass inte får plats, så att
-    // schemat inte splittras när ett helt pass hade gått att boka.
-    if ($allowed < $pass) {
+    // Före ett annat pass: korta pass bara i luckor där ett helt pass inte får
+    // plats, så att schemat inte splittras. I slutet av dagen (fram till
+    // stängning) är korta pass alltid tillåtna.
+    if ($allowed < $pass && $startHour + $available < $close) {
         $gapStart = tvatt_gap_start($bookings, $date, $startHour, $now, $config);
         if ($startHour + $available - $gapStart >= $pass) {
             return $fail('Här får ett helt pass plats. Boka ett helt pass, till exempel från ' . tvatt_pad($startHour + $available - $pass) . ':00.');
