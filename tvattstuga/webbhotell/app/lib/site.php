@@ -212,6 +212,46 @@ function tvatt_site_api(string $root, array $config, string $route, string $webR
         $store->save();
         return tvatt_send(200, ['apartment' => ['id' => $id, 'name' => $name['text']]]);
     }
+    if ($sub === '/exceptions') {
+        if ($method === 'POST') {
+            $body = tvatt_read_json();
+            $check = tvatt_validate_exception($body, $now);
+            if ($check['error']) return tvatt_fail(400, $check['error']);
+            $ex = $check['exception'];
+            $conflicts = tvatt_exception_conflicts($store->data['bookings'], $ex, $pconfig);
+            $decision = $body['onConflict'] ?? null;
+            if ($conflicts && !in_array($decision, ['cancel', 'keep'], true)) {
+                // Låt hyresvärden välja: avboka de pass som krockar, eller behålla dem.
+                return tvatt_send(409, [
+                    'error' => count($conflicts) . ' pass är redan bokade under den tiden.',
+                    'conflicts' => array_map(function ($b) use ($names, $pconfig) {
+                        return ['apartmentName' => $names[$b['apartmentId']] ?? (string) $b['apartmentId'], 'startHour' => $b['startHour'], 'endHour' => $b['startHour'] + tvatt_booking_hours($b, $pconfig)];
+                    }, $conflicts),
+                ]);
+            }
+            $cancelled = 0;
+            if ($conflicts && $decision === 'cancel') {
+                $ids = array_column($conflicts, 'id');
+                $store->data['bookings'] = array_values(array_filter($store->data['bookings'], function ($b) use ($ids) { return !in_array($b['id'], $ids, true); }));
+                $cancelled = count($ids);
+            }
+            $store->data['exceptions'][$ex['date']] = $ex;
+            // Gamla undantag behövs inte längre.
+            foreach (array_keys($store->data['exceptions']) as $date) {
+                if ($date < tvatt_add_days($now['date'], -1)) unset($store->data['exceptions'][$date]);
+            }
+            $store->save();
+            return tvatt_send(200, ['exceptions' => tvatt_exceptions_list($store, $now), 'cancelled' => $cancelled]);
+        }
+        if ($method !== 'GET') return tvatt_fail(405, 'Metoden stöds inte.');
+        return tvatt_send(200, ['exceptions' => tvatt_exceptions_list($store, $now)]);
+    }
+    if ($method === 'DELETE' && preg_match('#^/exceptions/(\d{4}-\d{2}-\d{2})$#', $sub, $em)) {
+        if (!isset($store->data['exceptions'][$em[1]])) return tvatt_fail(404, 'Det finns ingen avvikelse det datumet.');
+        unset($store->data['exceptions'][$em[1]]);
+        $store->save();
+        return tvatt_send(200, ['exceptions' => tvatt_exceptions_list($store, $now)]);
+    }
     if ($sub === '/board') {
         if ($method === 'POST') {
             $error = tvatt_board_add($store, TVATT_ADMIN_ID, tvatt_read_json()['text'] ?? null, $ts);

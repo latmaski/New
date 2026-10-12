@@ -83,7 +83,7 @@ test('hyresvärden ändrar bokningsreglerna', async (t) => {
   const current = await admin('GET', '/api/properties/pukevagen/rules');
   assert.deepEqual(current.body.rules, {
     openHour: 6, closeHour: 23, passHours: 4, minPassHours: 1, maxActiveBookings: 2, bookingHorizonDays: 28,
-    days: Array(7).fill([6, 23]),
+    days: Array(7).fill([6, 23]), exceptions: {},
   });
 
   const rules = { openHour: 7, closeHour: 22, passHours: 3, minPassHours: 3, maxActiveBookings: 3, bookingHorizonDays: 14 };
@@ -99,7 +99,7 @@ test('hyresvärden ändrar bokningsreglerna', async (t) => {
 
   assert.equal((await admin('POST', '/api/properties/pukevagen/rules', rules)).status, 200);
   assert.deepEqual((await env.client()('GET', '/api/config')).body.passHours, 3);
-  assert.deepEqual((await res('GET', '/api/bookings')).body.rules, { ...rules, days: Array(7).fill([7, 22]) });
+  assert.deepEqual((await res('GET', '/api/bookings')).body.rules, { ...rules, days: Array(7).fill([7, 22]), exceptions: {} });
 
   // Nya regler gäller för nya bokningar; det gamla passet 06–10 står kvar.
   assert.match((await book(res, '2026-10-11', 6)).body.error, /mellan 07:00 och 19:00/);

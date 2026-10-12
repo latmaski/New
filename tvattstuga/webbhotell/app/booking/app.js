@@ -170,12 +170,18 @@ function renderHeader() {
 function availableHours(date, hour, ignoreId) {
   const day = dayHours(state.config, date);
   let limit = day ? day[1] : 0;
+  let block = false;
   for (const b of state.bookings) {
     if (b.id === ignoreId || b.date !== date) continue;
     if (b.startHour <= hour && hour < b.endHour) return { hours: 0, limit };
     if (b.startHour > hour && b.startHour < limit) limit = b.startHour;
   }
-  return { hours: limit - hour, limit };
+  // Timmar som hyresvärden stängt räknas som upptagna.
+  for (const [from, to] of dayBlocks(state.config, date)) {
+    if (from <= hour && hour < to) return { hours: 0, limit };
+    if (from > hour && from <= limit) { limit = from; block = true; }
+  }
+  return { hours: limit - hour, limit, block };
 }
 
 // Där den lediga luckan börjar: föregående pass slut, öppning eller (idag) nuvarande timme.
@@ -185,6 +191,9 @@ function gapStart(date, hour, ignoreId) {
   for (const b of state.bookings) {
     if (b.id === ignoreId || b.date !== date) continue;
     if (b.endHour <= hour && b.endHour > start) start = b.endHour;
+  }
+  for (const [, to] of dayBlocks(state.config, date)) {
+    if (to <= hour && to > start) start = to;
   }
   return date === state.now.date ? Math.max(start, state.now.hour) : start;
 }
@@ -197,8 +206,13 @@ function cellStatus(date, hour, ignoreId = state.moving && state.moving.id) {
   const { passHours, maxActiveBookings, bookingHorizonDays } = state.config;
   const minHours = state.config.minPassHours || passHours;
   const day = dayHours(state.config, date);
-  if (!day) return { kind: 'closed', reason: 'Tvättstugan är stängd den här dagen.' };
-  if (hour < day[0] || hour >= day[1]) return { kind: 'closed', reason: `Öppet ${pad(day[0])}–${pad(day[1])} den här dagen.` };
+  const ex = exceptionFor(state.config, date);
+  const note = ex && ex.note ? ` (${ex.note})` : '';
+  if (!day) return { kind: 'closed', reason: `Tvättstugan är stängd den här dagen${note}.` };
+  if (hour < day[0] || hour >= day[1]) return { kind: 'closed', reason: `Öppet ${pad(day[0])}–${pad(day[1])} den här dagen${note}.` };
+  for (const [from, to] of dayBlocks(state.config, date)) {
+    if (from <= hour && hour < to) return { kind: 'closed', reason: `Stängt ${pad(from)}–${pad(to)} den här dagen${note}.` };
+  }
   const closeHour = day[1];
   const start = hourIndex(date, hour);
   if (start < hourIndex(state.now.date, state.now.hour)) return { kind: 'past', reason: 'Tiden har redan passerat.' };
@@ -214,7 +228,8 @@ function cellStatus(date, hour, ignoreId = state.moving && state.moving.id) {
   if (free.limit < closeHour && free.limit - gapStart(date, hour, ignoreId) >= passHours) {
     return { kind: 'blocked', reason: `Här får ett helt pass plats – välj en tidigare starttid (senast ${pad(free.limit - passHours)}:00).` };
   }
-  const why = free.limit === closeHour ? `tvättstugan stänger ${pad(closeHour)}:00` : `nästa pass börjar ${pad(free.limit)}:00`;
+  const why = free.limit === closeHour ? `tvättstugan stänger ${pad(closeHour)}:00`
+    : free.block ? `tvättstugan är stängd från ${pad(free.limit)}:00` : `nästa pass börjar ${pad(free.limit)}:00`;
   return { kind: 'short', hours, why };
 }
 
@@ -250,9 +265,11 @@ function renderGrid() {
   days.forEach((date, i) => {
     const head = document.createElement('div');
     const closed = !dayHours(state.config, date);
-    head.className = `day-head${date === state.now.date ? ' today' : ''}${closed ? ' closed' : ''}`;
+    const ex = exceptionFor(state.config, date);
+    head.className = `day-head${date === state.now.date ? ' today' : ''}${closed ? ' closed' : ''}${ex ? ' has-exception' : ''}`;
     head.innerHTML = `<b></b>${closed ? 'Stängt' : fmt(date, { day: 'numeric', month: 'short' })}`;
-    head.querySelector('b').textContent = fmt(date, { weekday: 'short' }).replace('.', '');
+    head.querySelector('b').textContent = fmt(date, { weekday: 'short' }).replace('.', '') + (ex ? ' ⚠' : '');
+    if (ex) head.title = `${describeException(ex)}${ex.note ? ` – ${ex.note}` : ''}`;
     place(head, i + 2, 1);
   });
 
@@ -328,6 +345,25 @@ function renderGrid() {
     }
     place(el, col + 2, b.startHour - openHour + 2, b.endHour - b.startHour);
   }
+
+  // Timmar som hyresvärden stängt (t.ex. service) visas som ett eget block.
+  days.forEach((date, i) => {
+    const ex = exceptionFor(state.config, date);
+    for (const [from, to] of dayBlocks(state.config, date)) {
+      const el = document.createElement('div');
+      el.className = 'booking closed-block';
+      el.innerHTML = '<b>Stängt</b><span></span>';
+      el.querySelector('span').textContent = `${pad(from)}–${pad(to)}`;
+      if (ex.note) {
+        const note = document.createElement('em');
+        note.className = 'note';
+        note.textContent = ex.note;
+        el.append(note);
+      }
+      el.title = `Stängt ${pad(from)}–${pad(to)}${ex.note ? ` – ${ex.note}` : ''}`;
+      place(el, i + 2, Math.max(from, openHour) - openHour + 2, Math.min(to, closeHour) - Math.max(from, openHour));
+    }
+  });
 
   const todayCol = days.indexOf(state.now.date);
   if (todayCol >= 0 && state.now.hour >= openHour && state.now.hour < closeHour) {
@@ -671,6 +707,27 @@ function applyRules(rules) {
   if (rules) Object.assign(state.config, rules);
   $('rules-text').textContent = rulesSummary(state.config).replace('man boka', 'du boka');
   $('legend-short').hidden = !(state.config.minPassHours < state.config.passHours);
+  renderExceptions();
+}
+
+// Kommande avvikande dagar med hyresvärdens anteckning, under "Mina pass".
+function renderExceptions() {
+  const today = state.now ? state.now.date : '';
+  const list = Object.values(state.config.exceptions || {})
+    .filter((e) => e.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const ul = $('exceptions-list');
+  ul.innerHTML = '';
+  $('exceptions').hidden = !list.length;
+  for (const e of list) {
+    const li = document.createElement('li');
+    li.innerHTML = '<b></b><span class="ex-what"></span><span class="ex-note"></span>';
+    li.querySelector('b').textContent = fmt(e.date, { weekday: 'short', day: 'numeric', month: 'short' }).replace('.', '');
+    li.querySelector('.ex-what').textContent = describeException(e);
+    li.querySelector('.ex-note').textContent = e.note;
+    if (!e.note) li.querySelector('.ex-note').remove();
+    ul.append(li);
+  }
 }
 
 async function init() {

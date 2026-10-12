@@ -69,6 +69,7 @@ function tvatt_property_config(array $config, array $entry, TvattStore $store): 
         if (isset($store->data['settings'][$key])) $c[$key] = (int) $store->data['settings'][$key];
     }
     if (array_key_exists('days', $store->data['settings'] ?? [])) $c['days'] = $store->data['settings']['days'];
+    $c['exceptions'] = $store->data['exceptions'] ?? [];
     return tvatt_normalize_rules($c);
 }
 
@@ -90,7 +91,65 @@ function tvatt_normalize_rules(array $r): array
 function tvatt_rules(array $config): array
 {
     $config = tvatt_normalize_rules($config);
-    return array_intersect_key($config, array_flip(TVATT_RULE_KEYS)) + ['days' => $config['days']];
+    return array_intersect_key($config, array_flip(TVATT_RULE_KEYS))
+        + ['days' => $config['days'], 'exceptions' => (object) ($config['exceptions'] ?? [])];
+}
+
+// ---------- Avvikande dagar ----------
+// Hyresvärden kan för ett enskilt datum stänga hela dagen ('closed'), ha andra
+// öppettider ('hours': open–close) eller stänga några timmar ('block': from–to),
+// med en anteckning om varför som visas för de boende.
+const TVATT_EXCEPTION_NOTE_MAX = 120;
+
+// Returnerar ['error' => ?string, 'exception' => array].
+function tvatt_validate_exception($body, array $now): array
+{
+    $fail = function (string $error) { return ['error' => $error, 'exception' => []]; };
+    if (!is_array($body)) return $fail('Ogiltig förfrågan.');
+    $date = $body['date'] ?? null;
+    if (!tvatt_is_valid_date($date)) return $fail('Välj ett datum.');
+    if ($date < $now['date']) return $fail('Datumet har redan passerat.');
+    $mode = $body['mode'] ?? null;
+    $ex = ['date' => $date, 'mode' => $mode];
+    $int = function ($v) { return is_int($v); };
+    if ($mode === 'hours') {
+        if (!$int($body['open'] ?? null) || !$int($body['close'] ?? null)) return $fail('Ange öppnings- och stängningstid.');
+        if ($body['open'] < 0 || $body['close'] > 24 || $body['close'] <= $body['open']) return $fail('Stängningstiden måste vara efter öppningstiden.');
+        $ex += ['open' => $body['open'], 'close' => $body['close']];
+    } elseif ($mode === 'block') {
+        if (!$int($body['from'] ?? null) || !$int($body['to'] ?? null)) return $fail('Ange vilka timmar det är stängt.');
+        if ($body['from'] < 0 || $body['to'] > 24 || $body['to'] <= $body['from']) return $fail('Sluttiden måste vara efter starttiden.');
+        $ex += ['from' => $body['from'], 'to' => $body['to']];
+    } elseif ($mode !== 'closed') {
+        return $fail('Välj om det är stängt hela dagen, andra öppettider eller stängt några timmar.');
+    }
+    $note = tvatt_clean_text($body['note'] ?? null, TVATT_EXCEPTION_NOTE_MAX, false);
+    if ($note['error']) return $fail('Anteckningen får vara högst ' . TVATT_EXCEPTION_NOTE_MAX . ' tecken.');
+    $ex['note'] = $note['text'];
+    return ['error' => null, 'exception' => $ex];
+}
+
+// Bokningar som inte längre ryms om undantaget sparas.
+function tvatt_exception_conflicts(array $bookings, array $ex, array $config): array
+{
+    $out = [];
+    foreach ($bookings as $b) {
+        if ($b['date'] !== $ex['date']) continue;
+        $start = (int) $b['startHour'];
+        $end = $start + tvatt_booking_hours($b, $config);
+        $hit = $ex['mode'] === 'closed'
+            || ($ex['mode'] === 'hours' && ($start < $ex['open'] || $end > $ex['close']))
+            || ($ex['mode'] === 'block' && $start < $ex['to'] && $ex['from'] < $end);
+        if ($hit) $out[] = $b;
+    }
+    return $out;
+}
+
+function tvatt_exceptions_list(TvattStore $store, array $now): array
+{
+    $list = array_values(array_filter($store->data['exceptions'] ?? [], function ($e) use ($now) { return $e['date'] >= $now['date']; }));
+    usort($list, function ($a, $b) { return strcmp($a['date'], $b['date']); });
+    return $list;
 }
 
 // Returnerar ['error' => ?string, 'rules' => array].

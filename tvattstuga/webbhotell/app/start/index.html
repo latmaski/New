@@ -116,6 +116,13 @@
             </form>
           </section>
 
+          <section class="panel" aria-labelledby="ex-title">
+            <h2 id="ex-title">Avvikande dagar</h2>
+            <p class="muted small">Stäng en hel dag, ändra öppettiderna eller stäng några timmar ett visst datum, till exempel för service eller helgdagar. Anteckningen visas för de boende.</p>
+            <ul id="ex-admin-list" class="ex-admin-list"></ul>
+            <button id="btn-add-exception" class="btn ghost small add-apt" type="button">+ Lägg till avvikande dag</button>
+          </section>
+
           <section id="board" class="panel board" aria-labelledby="board-title">
             <h2 id="board-title">Anslagstavla</h2>
             <p class="muted small board-hint">Syns för de boende i fastigheten. Du kan ta bort alla inlägg.</p>
@@ -220,6 +227,49 @@
     <div class="dialog-actions">
       <button class="btn ghost" type="button" data-close>Avbryt</button>
       <button class="btn primary" type="submit">Spara</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="ex-dialog" class="dialog">
+  <form id="ex-form">
+    <h3 id="ex-dialog-title">Avvikande dag</h3>
+    <label class="field"><span>Datum</span>
+      <input id="ex-date" type="date" required></label>
+    <fieldset class="ex-modes">
+      <legend>Vad gäller den dagen?</legend>
+      <label class="check"><input type="radio" name="ex-mode" value="closed" checked> Stängt hela dagen</label>
+      <label class="check"><input type="radio" name="ex-mode" value="hours"> Andra öppettider</label>
+      <div class="field-row ex-sub" data-mode="hours">
+        <label class="field"><span>Öppnar</span><select id="ex-open"></select></label>
+        <label class="field"><span>Stänger</span><select id="ex-close"></select></label>
+      </div>
+      <label class="check"><input type="radio" name="ex-mode" value="block"> Stängt några timmar</label>
+      <div class="field-row ex-sub" data-mode="block">
+        <label class="field"><span>Stängt från</span><select id="ex-from"></select></label>
+        <label class="field"><span>till</span><select id="ex-to"></select></label>
+      </div>
+    </fieldset>
+    <label class="field"><span>Anteckning till de boende (valfritt)</span>
+      <input id="ex-note" type="text" maxlength="120" placeholder="T.ex. Service av torktumlaren" autocomplete="off"></label>
+    <p id="ex-error" class="form-error" role="alert"></p>
+    <div class="dialog-actions">
+      <button class="btn ghost" type="button" data-close>Avbryt</button>
+      <button class="btn primary" type="submit">Spara</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="conflict-dialog" class="dialog">
+  <form method="dialog">
+    <h3 id="conflict-title"></h3>
+    <p class="muted">De här passen är redan bokade under tiden som ändras:</p>
+    <ul id="conflict-list" class="conflict-list"></ul>
+    <p class="muted small">Avbokar du passen försvinner de ur de boendes kalender. Behåller du dem står de kvar trots ändringen.</p>
+    <div class="dialog-actions">
+      <button class="btn ghost" value="abort">Avbryt</button>
+      <button class="btn ghost" value="keep">Behåll passen</button>
+      <button class="btn primary" value="cancel">Avboka passen</button>
     </div>
   </form>
 </dialog>

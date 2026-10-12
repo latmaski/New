@@ -36,6 +36,7 @@ Hyresvärden loggar in via *"Hyresvärd? Logga in"* längst ner på startsidan. 
 - **Statistik** över bokade pass och timmar per lägenhet: denna månad, förra månaden, i år, de senaste 12 månaderna eller totalt, samt kommande pass.
 - **Lägenheter och lösenord:** byt namn på en lägenhet, lägg till en lägenhet, eller ge en lägenhet ett nytt lösenord om någon har glömt sitt eller flyttar. Vid flytt kan man även avboka lägenhetens kommande pass, och då byts kalenderlänken.
 - **Bokningsregler:** öppettider per veckodag, där varje dag har egna tider eller är stängd (knappen *Samma tider som måndag alla dagar* fyller i resten), passets längd, kortaste pass (eller bara hela pass), max antal bokade pass och hur långt fram man får boka. Med *Återställ standard* gäller `config.php` igen. Redan bokade pass påverkas inte.
+- **Avvikande dagar:** för ett visst datum kan hyresvärden stänga hela dagen, ha andra öppettider (till exempel öppna 10 på nyårsdagen) eller stänga några timmar (till exempel 10–12 för service). Till det skrivs en anteckning om varför. De boende ser det i kalendern, där dagen markeras med ⚠ och stängda timmar visas som ett eget block, och i en lista "Avvikande tider" under *Mina pass*. Finns det redan bokade pass under tiden får hyresvärden välja att avboka dem eller behålla dem.
 - **Anslagstavla:** hyresvärden kan skriva inlägg och ta bort alla inlägg.
 - **Ändra namn och adress** för fastigheten.
 

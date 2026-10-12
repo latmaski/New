@@ -67,10 +67,28 @@ const DAY_NAMES = ['måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag', 'lördag'
 const DAY_SHORT = ['mån', 'tis', 'ons', 'tors', 'fre', 'lör', 'sön'];
 const weekdayIndex = (date) => (toDate(date).getUTCDay() + 6) % 7; // måndag = 0
 
+// Avvikande dag som hyresvärden lagt in (stängt, andra tider eller stängt några timmar).
+const exceptionFor = (r, date) => (r.exceptions && r.exceptions[date]) || null;
+
 // [öppnar, stänger] för ett datum, eller null om stängt.
 function dayHours(r, date) {
+  const ex = exceptionFor(r, date);
+  if (ex && ex.mode === 'closed') return null;
+  if (ex && ex.mode === 'hours') return [ex.open, ex.close];
   const days = r.days || Array(7).fill([r.openHour, r.closeHour]);
   return days[weekdayIndex(date)] || null;
+}
+
+// Stängda timmar inom en öppen dag: [[från, till]].
+function dayBlocks(r, date) {
+  const ex = exceptionFor(r, date);
+  return ex && ex.mode === 'block' ? [[ex.from, ex.to]] : [];
+}
+
+function describeException(ex) {
+  if (ex.mode === 'closed') return 'Stängt hela dagen';
+  if (ex.mode === 'hours') return `Öppet ${pad(ex.open)}–${pad(ex.close)}`;
+  return `Stängt ${pad(ex.from)}–${pad(ex.to)}`;
 }
 
 // "mån–fre 06–23, lör 08–18, sön stängt" – dagar i följd med samma tider slås ihop.

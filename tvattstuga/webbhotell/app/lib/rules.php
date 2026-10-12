@@ -50,12 +50,28 @@ function tvatt_is_active(array $booking, array $now, array $config): bool
 // om tvättstugan är stängd. days[0] = måndag … days[6] = söndag.
 function tvatt_day_hours(array $config, string $date): ?array
 {
+    // Avvikande dag (hyresvärden): stängt hela dagen eller andra öppettider.
+    $ex = $config['exceptions'][$date] ?? null;
+    if ($ex && $ex['mode'] === 'closed') return null;
+    if ($ex && $ex['mode'] === 'hours') return [(int) $ex['open'], (int) $ex['close']];
     $weekday = (int) (new DateTime($date . ' 00:00:00', new DateTimeZone('UTC')))->format('N') - 1;
     // OBS: null betyder stängt, så ?? går inte att använda här.
     $day = isset($config['days']) && array_key_exists($weekday, $config['days'])
         ? $config['days'][$weekday]
         : [$config['openHour'], $config['closeHour']];
     return $day ? [(int) $day[0], (int) $day[1]] : null;
+}
+
+// Avvikande dag med "stängt några timmar": intervallet räknas som upptaget,
+// som ett pass som ingen äger. Returneras som låtsasbokningar.
+function tvatt_day_blocks(array $config, string $date): array
+{
+    $ex = $config['exceptions'][$date] ?? null;
+    if (!$ex || $ex['mode'] !== 'block') return [];
+    return [[
+        'id' => '__stangt', 'apartmentId' => '', 'date' => $date,
+        'startHour' => (int) $ex['from'], 'hours' => (int) $ex['to'] - (int) $ex['from'],
+    ]];
 }
 
 // Antal lediga timmar från startHour fram till nästa pass eller stängning.
@@ -113,8 +129,17 @@ function tvatt_check_booking(array $bookings, string $apartmentId, $date, $start
     $pass = $config['passHours'];
     $min = $config['minPassHours'] ?? $pass;
     $day = tvatt_day_hours($config, $date);
-    if (!$day) return $fail('Tvättstugan är stängd den dagen.');
+    $note = $config['exceptions'][$date]['note'] ?? '';
+    $why = $note !== '' ? " ($note)" : '';
+    if (!$day) return $fail("Tvättstugan är stängd den dagen$why.");
     [$open, $close] = $day;
+    $blocks = tvatt_day_blocks($config, $date);
+    foreach ($blocks as $b) {
+        if ($startHour >= $b['startHour'] && $startHour < $b['startHour'] + $b['hours']) {
+            return $fail('Tvättstugan är stängd ' . tvatt_pad($b['startHour']) . '–' . tvatt_pad($b['startHour'] + $b['hours']) . " den dagen$why.");
+        }
+    }
+    $bookings = array_merge($bookings, $blocks);
     if ($startHour < $open || $startHour + $min > $close) {
         return $fail('Den dagen kan pass starta mellan ' . tvatt_pad($open) . ':00 och ' . tvatt_pad($close - $min) . ':00.');
     }

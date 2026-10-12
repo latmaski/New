@@ -219,6 +219,15 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
 .rules-summary { margin: 14px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line-soft); font-size: 13px; color: var(--ink-2); }
 .form-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 .grid .day-head.closed { color: var(--ink-3); }
+.grid .day-head.has-exception b { color: var(--short-ink); }
+.booking.closed-block { background: repeating-linear-gradient(135deg, var(--short) 0 8px, color-mix(in srgb, var(--short) 70%, var(--surface)) 8px 16px); color: var(--short-ink); border: 1px solid var(--short-line); }
+.exceptions { margin-top: 16px; padding: 12px; border-radius: 12px; background: var(--short); border: 1px solid var(--short-line); color: var(--short-ink); }
+.exceptions h3 { font-size: 13.5px; margin: 0 0 6px; }
+.exceptions ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.exceptions li { display: flex; flex-wrap: wrap; gap: 0 6px; }
+.exceptions li b { display: inline-block; }
+.exceptions li b::first-letter { text-transform: uppercase; }
+.exceptions .ex-note { flex-basis: 100%; font-style: italic; opacity: .9; overflow-wrap: anywhere; }
 .grid .day-head.closed b { color: var(--ink-3); }
 .day-strip button.closed:not([aria-selected="true"]) { opacity: .5; }
 .cell.closed { background: var(--surface-2); opacity: .6; cursor: default; }

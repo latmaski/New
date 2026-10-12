@@ -117,7 +117,7 @@ async function selectProperty(slug) {
   localStorageSet('adminProperty', slug);
   renderNav();
   board.use(base());
-  const [property] = await Promise.all([api(base()), loadStats(), loadRules(), board.load()]);
+  const [property] = await Promise.all([api(base()), loadStats(), loadRules(), loadExceptions(), board.load()]);
   renderProperty(property);
 }
 
@@ -357,6 +357,7 @@ function updateRulesSummary() {
 async function loadRules() {
   const data = await api(`${base()}rules`);
   state.ruleDefaults = data.defaults;
+  state.rulesForm = data.rules;
   renderRulesForm(data.rules);
 }
 
@@ -389,6 +390,128 @@ $('rules-reset').addEventListener('click', async () => {
     toast(err.message, true);
   }
 });
+
+// ---------- Avvikande dagar ----------
+async function loadExceptions() {
+  renderExceptionList((await api(`${base()}exceptions`)).exceptions);
+}
+
+function renderExceptionList(list) {
+  state.exceptions = list;
+  const ul = $('ex-admin-list');
+  ul.innerHTML = '';
+  if (!list.length) {
+    const li = document.createElement('li');
+    li.className = 'empty';
+    li.textContent = 'Inga avvikande dagar framåt.';
+    ul.append(li);
+  }
+  for (const e of list) {
+    const li = document.createElement('li');
+    li.innerHTML = '<div class="ex-text"><b></b><span></span><em></em></div><span class="apt-actions"><button class="btn ghost small" type="button" data-act="edit">Ändra</button><button class="btn ghost small danger" type="button" data-act="delete">Ta bort</button></span>';
+    li.querySelector('b').textContent = fmt(e.date, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }).replace('.', '');
+    li.querySelector('span').textContent = describeException(e);
+    li.querySelector('em').textContent = e.note;
+    li.querySelector('[data-act="edit"]').addEventListener('click', () => editException(e));
+    li.querySelector('[data-act="delete"]').addEventListener('click', () => deleteException(e));
+    ul.append(li);
+  }
+}
+
+const exMode = () => document.querySelector('input[name="ex-mode"]:checked').value;
+function syncExceptionForm() {
+  for (const el of document.querySelectorAll('.ex-sub')) el.hidden = el.dataset.mode !== exMode();
+  const open = Number($('ex-open').value);
+  fillSelect('ex-close', range(open + 1, 24), (h) => `${pad(h)}:00`, Math.max(Number($('ex-close').value) || 0, open + 1));
+  const from = Number($('ex-from').value);
+  fillSelect('ex-to', range(from + 1, 24), (h) => `${pad(h)}:00`, Math.max(Number($('ex-to').value) || 0, from + 1));
+}
+
+function editException(e) {
+  const r = state.rulesForm || { openHour: 6, closeHour: 23 };
+  $('ex-dialog-title').textContent = e ? 'Ändra avvikande dag' : 'Lägg till avvikande dag';
+  $('ex-date').min = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Stockholm' });
+  $('ex-date').value = e ? e.date : '';
+  $('ex-date').disabled = Boolean(e);
+  document.querySelector(`input[name="ex-mode"][value="${e ? e.mode : 'closed'}"]`).checked = true;
+  fillSelect('ex-open', range(0, 23), (h) => `${pad(h)}:00`, e && e.mode === 'hours' ? e.open : r.openHour);
+  fillSelect('ex-close', range(1, 24), (h) => `${pad(h)}:00`, e && e.mode === 'hours' ? e.close : r.closeHour);
+  fillSelect('ex-from', range(0, 23), (h) => `${pad(h)}:00`, e && e.mode === 'block' ? e.from : 10);
+  fillSelect('ex-to', range(1, 24), (h) => `${pad(h)}:00`, e && e.mode === 'block' ? e.to : 12);
+  $('ex-note').value = e ? e.note : '';
+  $('ex-error').textContent = '';
+  syncExceptionForm();
+  $('ex-dialog').showModal();
+}
+$('btn-add-exception').addEventListener('click', () => editException(null));
+for (const el of [...document.querySelectorAll('input[name="ex-mode"]'), $('ex-open'), $('ex-from')]) {
+  el.addEventListener('change', syncExceptionForm);
+}
+
+function readException() {
+  const body = { date: $('ex-date').value, mode: exMode(), note: $('ex-note').value };
+  if (body.mode === 'hours') Object.assign(body, { open: Number($('ex-open').value), close: Number($('ex-close').value) });
+  if (body.mode === 'block') Object.assign(body, { from: Number($('ex-from').value), to: Number($('ex-to').value) });
+  return body;
+}
+
+// Sparar; krockar det med bokade pass får hyresvärden välja att avboka eller behålla dem.
+async function saveException(body) {
+  const res = await fetch(`${base()}exceptions`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 409 && data.conflicts) {
+    const decision = await askConflict(data);
+    if (decision === 'abort') return null;
+    return saveException({ ...body, onConflict: decision });
+  }
+  if (res.status === 401) showLanding();
+  if (!res.ok) throw new Error(data.error || 'Något gick fel.');
+  return data;
+}
+
+function askConflict(data) {
+  $('conflict-title').textContent = data.error;
+  const ul = $('conflict-list');
+  ul.innerHTML = '';
+  for (const c of data.conflicts) {
+    const li = document.createElement('li');
+    li.textContent = `${c.apartmentName}, ${pad(c.startHour)}:00–${pad(c.endHour)}:00`;
+    ul.append(li);
+  }
+  const dialog = $('conflict-dialog');
+  dialog.returnValue = '';
+  dialog.showModal();
+  return new Promise((resolve) => {
+    dialog.addEventListener('close', () => resolve(dialog.returnValue || 'abort'), { once: true });
+  });
+}
+
+$('ex-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  $('ex-error').textContent = '';
+  try {
+    const data = await saveException(readException());
+    if (!data) return;
+    $('ex-dialog').close();
+    renderExceptionList(data.exceptions);
+    loadStats().catch(() => {});
+    toast(data.cancelled ? `Sparat. ${data.cancelled} pass avbokades.` : 'Den avvikande dagen är sparad.');
+  } catch (err) {
+    $('ex-error').textContent = err.message;
+  }
+});
+
+async function deleteException(e) {
+  if (!window.confirm(`Ta bort avvikelsen ${fmt(e.date, { day: 'numeric', month: 'long' })}? Då gäller de vanliga öppettiderna.`)) return;
+  try {
+    renderExceptionList((await api(`${base()}exceptions/${e.date}`, { method: 'DELETE' })).exceptions);
+    toast('Avvikelsen är borttagen.');
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
 
 // ---------- Ändra fastighet ----------
 $('btn-edit-property').addEventListener('click', () => {

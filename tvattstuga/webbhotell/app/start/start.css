@@ -70,6 +70,20 @@ body.start-page {
 .week-table tr.is-closed th { color: var(--ink-3); }
 .week-copy { margin: 8px 0 0; font-size: 13px; }
 
+/* Avvikande dagar */
+.ex-admin-list { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ex-admin-list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px 8px 12px; border: 1px solid var(--short-line); border-radius: 12px; background: var(--short); font-size: 14px; }
+.ex-admin-list li.empty { background: var(--surface-2); border: 1px dashed var(--line); color: var(--ink-2); font-size: 13.5px; }
+.ex-text { display: flex; flex-direction: column; min-width: 0; flex: 1 1 160px; color: var(--short-ink); }
+.ex-text b::first-letter { text-transform: uppercase; }
+.ex-text em { font-size: 13px; overflow-wrap: anywhere; }
+.ex-modes { border: 0; padding: 0; margin: 14px 0 0; }
+.ex-modes legend { font-size: 13px; font-weight: 600; color: var(--ink-2); padding: 0; }
+.ex-modes .check { margin-top: 10px; }
+.ex-sub { margin: 0 0 4px 26px; }
+.ex-sub .field { margin-top: 6px; }
+.conflict-list { margin: 8px 0; padding-left: 20px; font-size: 14px; }
+
 /* Utskrift av nya lösenord: bara listan. */
 @media print {
   body > *:not(#created-dialog) { display: none !important; }
