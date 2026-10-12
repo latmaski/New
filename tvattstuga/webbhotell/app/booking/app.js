@@ -253,6 +253,7 @@ function renderGrid() {
     closeHour = Math.max(closeHour, b.endHour);
   }
   state.gridOpen = openHour;
+  renderDayNote(days);
   const grid = $('grid');
   const hours = closeHour - openHour;
   grid.innerHTML = '';
@@ -314,6 +315,26 @@ function renderGrid() {
     });
   }
 
+  // Stängda tider visas som block med anledningen (hyresvärdens anteckning):
+  // hela stängda dagar, timmar utanför avvikande öppettider och stängda timmar.
+  days.forEach((date, i) => {
+    for (const seg of closedSegments(date, openHour, closeHour)) {
+      const el = document.createElement('div');
+      el.className = 'booking closed-block';
+      el.innerHTML = '<b></b><span></span>';
+      el.querySelector('b').textContent = seg.label;
+      el.querySelector('span').textContent = seg.full ? '' : `${pad(seg.from)}–${pad(seg.to)}`;
+      if (seg.note) {
+        const note = document.createElement('em');
+        note.className = 'note';
+        note.textContent = seg.note;
+        el.append(note);
+      }
+      el.title = `${seg.label}${seg.full ? '' : ` ${pad(seg.from)}–${pad(seg.to)}`}${seg.note ? ` – ${seg.note}` : ''}`;
+      place(el, i + 2, seg.from - openHour + 2, seg.to - seg.from);
+    }
+  });
+
   const nowIdx = hourIndex(state.now.date, state.now.hour) + state.now.minute / 60;
   for (const b of state.bookings) {
     const col = days.indexOf(b.date);
@@ -346,25 +367,6 @@ function renderGrid() {
     place(el, col + 2, b.startHour - openHour + 2, b.endHour - b.startHour);
   }
 
-  // Timmar som hyresvärden stängt (t.ex. service) visas som ett eget block.
-  days.forEach((date, i) => {
-    const ex = exceptionFor(state.config, date);
-    for (const [from, to] of dayBlocks(state.config, date)) {
-      const el = document.createElement('div');
-      el.className = 'booking closed-block';
-      el.innerHTML = '<b>Stängt</b><span></span>';
-      el.querySelector('span').textContent = `${pad(from)}–${pad(to)}`;
-      if (ex.note) {
-        const note = document.createElement('em');
-        note.className = 'note';
-        note.textContent = ex.note;
-        el.append(note);
-      }
-      el.title = `Stängt ${pad(from)}–${pad(to)}${ex.note ? ` – ${ex.note}` : ''}`;
-      place(el, i + 2, Math.max(from, openHour) - openHour + 2, Math.min(to, closeHour) - Math.max(from, openHour));
-    }
-  });
-
   const todayCol = days.indexOf(state.now.date);
   if (todayCol >= 0 && state.now.hour >= openHour && state.now.hour < closeHour) {
     const line = document.createElement('div');
@@ -372,6 +374,38 @@ function renderGrid() {
     line.style.marginTop = `calc(${(state.now.minute / 60).toFixed(3)} * var(--row, 26px))`;
     place(line, todayCol + 2, state.now.hour - openHour + 2);
   }
+}
+
+// I dagvyn (mobil) syns inte timmarna utanför dagens öppettider, så det som
+// gäller den dagen – och varför – står på en rad ovanför kalendern.
+function renderDayNote(days) {
+  const el = $('day-note');
+  const ex = days.length === 1 ? exceptionFor(state.config, days[0]) : null;
+  el.hidden = !ex;
+  if (ex) el.textContent = `⚠ ${describeException(ex)}${ex.note ? ` – ${ex.note}` : ''}`;
+}
+
+// Stängda delar av en dag inom kalenderns rader [openHour, closeHour).
+function closedSegments(date, openHour, closeHour) {
+  const ex = exceptionFor(state.config, date);
+  const note = ex ? ex.note : '';
+  const day = dayHours(state.config, date);
+  const clip = (from, to) => [Math.max(from, openHour), Math.min(to, closeHour)];
+  const out = [];
+  const add = (from, to, label, full = false) => {
+    const [f, t] = clip(from, to);
+    if (t > f) out.push({ from: f, to: t, label, note, full });
+  };
+  if (!day) {
+    add(openHour, closeHour, ex ? 'Stängt hela dagen' : 'Stängt', true);
+    return out;
+  }
+  if (ex && ex.mode === 'hours') {
+    add(openHour, day[0], 'Stängt');
+    add(day[1], closeHour, 'Stängt');
+  }
+  for (const [from, to] of dayBlocks(state.config, date)) add(from, to, 'Stängt');
+  return out;
 }
 
 function preview(cells, date, hour, hours, on) {

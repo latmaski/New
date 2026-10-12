@@ -220,6 +220,9 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
 .form-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 .grid .day-head.closed { color: var(--ink-3); }
 .grid .day-head.has-exception b { color: var(--short-ink); }
+.booking.closed-block .note { -webkit-line-clamp: 8; }
+.booking.closed-block b { white-space: normal; }
+.day-note { margin: 0 0 12px; padding: 9px 12px; border-radius: 10px; background: var(--short); border: 1px solid var(--short-line); color: var(--short-ink); font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
 .booking.closed-block { background: repeating-linear-gradient(135deg, var(--short) 0 8px, color-mix(in srgb, var(--short) 70%, var(--surface)) 8px 16px); color: var(--short-ink); border: 1px solid var(--short-line); }
 .exceptions { margin-top: 16px; padding: 12px; border-radius: 12px; background: var(--short); border: 1px solid var(--short-line); color: var(--short-ink); }
 .exceptions h3 { font-size: 13.5px; margin: 0 0 6px; }
