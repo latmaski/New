@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 252 64" width="252" height="64" role="img" aria-label="CJA Fastighet &amp; Bygg AB">
+  <style>
+    .tile { fill: #1F4E66; }
+    .house { fill: #FFFFFF; }
+    .door { fill: #1F4E66; }
+    .roof { fill: none; stroke: #E3A43B; stroke-width: 4.5; stroke-linecap: round; stroke-linejoin: round; }
+    .name { fill: #13201F; font: 800 29px "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif; letter-spacing: 1.5px; }
+    .sub { fill: #4C5A58; font: 600 10.5px "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif; letter-spacing: 2.2px; }
+  </style>
+  <rect class="tile" x="2" y="4" width="56" height="56" rx="13"/>
+  <path class="house" d="M17 33 L30 21.5 L43 33 V49 H17 Z"/>
+  <rect class="door" x="26" y="38" width="8" height="11" rx="1.5"/>
+  <path class="roof" d="M12.5 31.5 L30 15.5 L47.5 31.5"/>
+  <text class="name" x="72" y="35">CJA</text>
+  <text class="sub" x="73" y="52">FASTIGHET &amp; BYGG AB</text>
+</svg>
