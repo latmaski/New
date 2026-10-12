@@ -56,17 +56,14 @@ data/           skapas automatiskt: bokningar, lösenordshashar och inställning
 
 `public_html/` och `pukevagen/` innehåller bara en liten `index.php`, en `.htaccess` och en `robots.txt`. All kod finns i `app/`. En uppdatering är alltså bara att ladda upp `app/` igen. Webbläsarna hämtar de nya filerna direkt.
 
-## Flytta från tvatt.indoor.net till pukevagen.cjafastighetobygg.se
+## Lägga upp på Simply (cjafastighetobygg.se)
 
-Koden räknar ut adresserna själv, så inget i koden behöver ändras för den nya adressen. Det som behöver göras:
+Koden räknar ut adresserna själv, så inget i koden behöver ändras för domänen.
 
 1. **Underdomänen** `pukevagen.cjafastighetobygg.se` finns redan hos Simply och pekar på mappen `/pukevagen`. DNS behöver inte ändras.
 2. **Ladda upp:** packa upp zip-filen i roten på FTP-kontot för cjafastighetobygg.se (användare `cjafastighetoby.se`, värd `ftp.simply.com`). Ta bort Simplys standardfiler i `public_html/` om det finns några, till exempel en välkomstsida.
-3. **Flytta bokningarna:** hämta `tvatt/data/db.json` från indoor.net via FTP (finns den inte där, leta efter `tvatt-data/db.json`). Ladda upp den som `data/properties/pukevagen/db.json` på cjafastighetobygg.se. Skapa mapparna om de inte finns. Gör det **innan** bokningssidan öppnas första gången. Då gäller lägenheternas gamla lösenord, och alla bokningar, regler, anteckningar och inlägg följer med.
-4. **Slå på SSL** för både cjafastighetobygg.se och pukevagen.cjafastighetobygg.se i Simplys kontrollpanel.
-5. **Hämta hyresvärdens lösenord:** öppna https://cjafastighetobygg.se en gång. Hämta sedan `data/losenord.txt` via FTP och **radera filen**. Hyresvärdens gamla lösenord från bokningssidan gäller inte längre.
-6. **Gamla adressen:** byt ut allt i mappen `tvatt/` på indoor.net mot filen `flytt/tvatt.indoor.net/.htaccess`. Då skickas alla som går till tvatt.indoor.net vidare till den nya adressen.
-7. **Säg till de boende:** de loggar in en gång till på den nya adressen. Den som har lagt in tvättstugan i mobilens kalender lägger in den nya kalenderlänken under *Påminnelser i mobilens kalender*. Kalenderappar följer inte alltid omdirigeringen.
+3. **Slå på SSL** för både cjafastighetobygg.se och pukevagen.cjafastighetobygg.se i Simplys kontrollpanel.
+4. **Hämta lösenorden:** öppna https://cjafastighetobygg.se och https://pukevagen.cjafastighetobygg.se en gång var. Hämta sedan `data/losenord.txt` via FTP. Den innehåller hyresvärdens lösenord och ett lösenord per lägenhet. Dela ut dem och **radera filen**.
 
 Kräver PHP 7.3 eller senare.
 
