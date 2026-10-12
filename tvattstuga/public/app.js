@@ -487,7 +487,7 @@ function renderBoard(posts) {
   if (!posts.length) {
     const li = document.createElement('li');
     li.className = 'empty';
-    li.textContent = 'Inga inlägg ännu. Här kan du skriva något till grannarna eller hyresvärden.';
+    li.textContent = 'Inga inlägg ännu.';
     list.append(li);
   }
   const shown = boardExpanded ? posts : posts.slice(0, BOARD_SHOWN);

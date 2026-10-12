@@ -16,4 +16,9 @@ DirectoryIndex index.html
 <IfModule mod_headers.c>
   Header set X-Content-Type-Options "nosniff"
   Header set Referrer-Policy "same-origin"
+  # Fråga alltid servern om sidan och skripten är ändrade, så att en ny
+  # uppladdning slår igenom direkt (oförändrade filer laddas inte om).
+  <FilesMatch "\.(html|js|css)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
 </IfModule>

@@ -14,7 +14,7 @@ Bokningsverktyg för tvättstugan. Det är gjort för att köras på ett vanligt
 ### Anteckningar och anslagstavla
 
 - **Anteckning på ett pass:** man kan skriva en kort anteckning på sitt pass, högst 200 tecken, till exempel "Tvättar mattor". Det går när man bokar eller senare via raden under passet i "Mina pass". Anteckningen syns för alla i kalendern, och de andra klickar på passet för att läsa hela texten. Den följer med när passet flyttas.
-- **Anslagstavla:** under "Mina pass", och i hyresvärdens vy, finns en anslagstavla. Där kan alla skriva inlägg på högst 500 tecken, som visas med namn, datum och tid. Man kan ta bort sina egna inlägg, och hyresvärden kan ta bort alla.
+- **Anslagstavla:** under "Mina pass", och i hyresvärdens vy, finns en anslagstavla för grannarna. Det som hyresvärden behöver veta skrivs i WhatsApp-gruppen som vanligt. Där kan alla skriva inlägg på högst 500 tecken, som visas med namn, datum och tid. Man kan ta bort sina egna inlägg, och hyresvärden kan ta bort alla.
 
 ### Påminnelser
 
@@ -57,7 +57,7 @@ Kräver PHP 7.3 eller senare.
 
 Bokningar, hyresvärdens regler, lösenordshashar och den hemliga nyckeln för sessionerna ligger i `tvatt-data/db.json`. Säkerhetskopiera den filen. Om mappen bredvid `public_html` inte går att skriva till används `public_html/tvatt/data/` i stället. Den skyddas med `.htaccess`.
 
-Uppdatera appen genom att ladda upp `public/` igen. Data ligger i en egen mapp och påverkas inte.
+Uppdatera appen genom att ladda upp innehållet i ett nytt paket från `npm run paket` (`tvattstuga-webbhotell.zip`). Data ligger i en egen mapp och påverkas inte. Paketet får ett nytt versionsnummer på `app.js` och `style.css`, och `.htaccess` ber webbläsarna att alltid kontrollera om filerna har ändrats. Därför slår en uppdatering igenom direkt. Laddar du upp `public/` direkt i stället, gör en hård omladdning av sidan efteråt (Ctrl/Cmd+Shift+R).
 
 ## Utveckling
 

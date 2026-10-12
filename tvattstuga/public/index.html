@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tvättstugan · Stora Pukevägen 12</title>
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=dev">
 </head>
 <body>
 
@@ -205,6 +205,7 @@
 
 <section id="board" class="panel board" aria-labelledby="board-title" hidden>
   <h2 id="board-title">Anslagstavla</h2>
+  <p class="muted small board-hint">Här kan du skriva något till grannarna. Behöver hyresvärden veta, så skriv i WhatsApp-gruppen som vanligt.</p>
   <form id="board-form" class="board-form">
     <label class="sr-only" for="board-text">Skriv ett inlägg</label>
     <textarea id="board-text" rows="2" maxlength="500" placeholder="Skriv något till grannarna …"></textarea>
@@ -239,6 +240,6 @@
 
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js"></script>
+<script src="app.js?v=dev"></script>
 </body>
 </html>

@@ -176,6 +176,7 @@ legend { font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 
 .booking.has-note.taken:hover { filter: brightness(.97); border-color: var(--ink-3); }
 .note-view-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; margin: 8px 0 0; padding: 12px 14px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line-soft); }
 .board h2 { font-size: 17px; }
+.board-hint { margin: 4px 0 0; }
 .board-form { margin-top: 12px; }
 .board-form textarea { width: 100%; resize: vertical; min-height: 56px; font: inherit; font-size: 15px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); }
 .board-form textarea:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
