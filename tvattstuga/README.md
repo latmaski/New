@@ -27,7 +27,7 @@ Under "Mina pass" finns knappen **Påminnelser i mobilens kalender**. Varje läg
 
 Länken är hemlig men kräver ingen inloggning, så att kalenderappen kan hämta den. Den kan bytas mot en ny i appen. När hyresvärden markerar att nya boende flyttar in byts den automatiskt.
 
-Reglerna ovan är standardvärden. Hyresvärden kan ändra dem per fastighet på startsidan, se nedan. Standardvärdena finns i `webbhotell/app/config.php`.
+Reglerna ovan är standardvärden. Hyresvärden kan ändra dem per fastighet på startsidan, se nedan, till exempel andra tider på helger eller stängt vissa dagar. Kalendern visar då varje dags egna tider, och stängda dagar är grå. Standardvärdena finns i `webbhotell/app/config.php`.
 
 ## Hyresvärd (startsidan)
 
@@ -35,7 +35,7 @@ Hyresvärden loggar in via *"Hyresvärd? Logga in"* längst ner på startsidan. 
 
 - **Statistik** över bokade pass och timmar per lägenhet: denna månad, förra månaden, i år, de senaste 12 månaderna eller totalt, samt kommande pass.
 - **Lägenheter och lösenord:** byt namn på en lägenhet, lägg till en lägenhet, eller ge en lägenhet ett nytt lösenord om någon har glömt sitt eller flyttar. Vid flytt kan man även avboka lägenhetens kommande pass, och då byts kalenderlänken.
-- **Bokningsregler:** öppettider, passets längd, kortaste pass (eller bara hela pass), max antal bokade pass och hur långt fram man får boka. Med *Återställ standard* gäller `config.php` igen. Redan bokade pass påverkas inte.
+- **Bokningsregler:** öppettider per veckodag, där varje dag har egna tider eller är stängd (knappen *Samma tider som måndag alla dagar* fyller i resten), passets längd, kortaste pass (eller bara hela pass), max antal bokade pass och hur långt fram man får boka. Med *Återställ standard* gäller `config.php` igen. Redan bokade pass påverkas inte.
 - **Anslagstavla:** hyresvärden kan skriva inlägg och ta bort alla inlägg.
 - **Ändra namn och adress** för fastigheten.
 

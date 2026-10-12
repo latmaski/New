@@ -62,14 +62,42 @@ function fillSelect(id, values, label, selected) {
   if (selected !== undefined && values.includes(selected)) sel.value = String(selected);
 }
 
+// ---------- Öppettider (veckoschema) ----------
+const DAY_NAMES = ['måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag', 'lördag', 'söndag'];
+const DAY_SHORT = ['mån', 'tis', 'ons', 'tors', 'fre', 'lör', 'sön'];
+const weekdayIndex = (date) => (toDate(date).getUTCDay() + 6) % 7; // måndag = 0
+
+// [öppnar, stänger] för ett datum, eller null om stängt.
+function dayHours(r, date) {
+  const days = r.days || Array(7).fill([r.openHour, r.closeHour]);
+  return days[weekdayIndex(date)] || null;
+}
+
+// "mån–fre 06–23, lör 08–18, sön stängt" – dagar i följd med samma tider slås ihop.
+function scheduleText(days) {
+  const same = (a, b) => (a && b ? a[0] === b[0] && a[1] === b[1] : a === b);
+  const parts = [];
+  for (let i = 0; i < 7;) {
+    let j = i;
+    while (j < 6 && same(days[j + 1], days[i])) j++;
+    const label = i === j ? DAY_SHORT[i] : `${DAY_SHORT[i]}–${DAY_SHORT[j]}`;
+    parts.push(`${label} ${days[i] ? `${pad(days[i][0])}–${pad(days[i][1])}` : 'stängt'}`);
+    i = j + 1;
+  }
+  return parts.join(', ');
+}
+
 function rulesSummary(r) {
-  const lastFull = r.closeHour - r.passHours;
+  const days = r.days || Array(7).fill([r.openHour, r.closeHour]);
+  const uniform = days.every((d) => d && d[0] === days[0][0] && d[1] === days[0][1]);
   const short = r.minPassHours < r.passHours
     ? `Får ett helt pass inte plats kan man boka ett kortare, ned till ${hoursText(r.minPassHours)}. `
     : '';
-  return `Pass om ${hoursText(r.passHours)} mellan ${pad(r.openHour)}:00 och ${pad(r.closeHour)}:00, alla dagar `
-    + `(hela pass startar senast ${pad(lastFull)}:00). ${short}`
-    + `Max ${r.maxActiveBookings} bokade pass åt gången, upp till ${r.bookingHorizonDays} dagar fram.`;
+  const hours = uniform
+    ? `Pass om ${hoursText(r.passHours)} mellan ${pad(days[0][0])}:00 och ${pad(days[0][1])}:00, alla dagar `
+      + `(hela pass startar senast ${pad(days[0][1] - r.passHours)}:00). `
+    : `Pass om ${hoursText(r.passHours)}. Öppet ${scheduleText(days)}. `;
+  return `${hours}${short}Max ${r.maxActiveBookings} bokade pass åt gången, upp till ${r.bookingHorizonDays} dagar fram.`;
 }
 
 function postTime(iso) {

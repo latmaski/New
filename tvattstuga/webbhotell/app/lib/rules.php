@@ -46,11 +46,24 @@ function tvatt_is_active(array $booking, array $now, array $config): bool
     return tvatt_hour_index($booking['date'], $booking['startHour']) + tvatt_booking_hours($booking, $config) > tvatt_now_index($now);
 }
 
+// Öppettider för ett datum enligt veckoschemat: [öppnar, stänger] eller null
+// om tvättstugan är stängd. days[0] = måndag … days[6] = söndag.
+function tvatt_day_hours(array $config, string $date): ?array
+{
+    $weekday = (int) (new DateTime($date . ' 00:00:00', new DateTimeZone('UTC')))->format('N') - 1;
+    // OBS: null betyder stängt, så ?? går inte att använda här.
+    $day = isset($config['days']) && array_key_exists($weekday, $config['days'])
+        ? $config['days'][$weekday]
+        : [$config['openHour'], $config['closeHour']];
+    return $day ? [(int) $day[0], (int) $day[1]] : null;
+}
+
 // Antal lediga timmar från startHour fram till nästa pass eller stängning.
 // 0 om startHour ligger inne i ett befintligt pass.
 function tvatt_available_hours(array $bookings, string $date, int $startHour, array $config): int
 {
-    $limit = $config['closeHour'];
+    $day = tvatt_day_hours($config, $date);
+    $limit = $day ? $day[1] : 0;
     foreach ($bookings as $b) {
         if ($b['date'] !== $date) continue;
         $bStart = (int) $b['startHour'];
@@ -76,7 +89,8 @@ function tvatt_pad(int $h): string
 // pass, öppningstiden eller – idag – innevarande timme.
 function tvatt_gap_start(array $bookings, string $date, int $startHour, array $now, array $config): int
 {
-    $start = $config['openHour'];
+    $day = tvatt_day_hours($config, $date);
+    $start = $day ? $day[0] : 0;
     foreach ($bookings as $b) {
         if ($b['date'] !== $date) continue;
         $end = (int) $b['startHour'] + tvatt_booking_hours($b, $config);
@@ -96,12 +110,13 @@ function tvatt_check_booking(array $bookings, string $apartmentId, $date, $start
     if (!tvatt_is_valid_date($date)) return $fail('Ogiltigt datum.');
     if (!is_int($startHour)) return $fail('Ogiltig starttid.');
     if ($hours !== null && !is_int($hours)) return $fail('Ogiltig längd.');
-    $open = $config['openHour'];
-    $close = $config['closeHour'];
     $pass = $config['passHours'];
     $min = $config['minPassHours'] ?? $pass;
+    $day = tvatt_day_hours($config, $date);
+    if (!$day) return $fail('Tvättstugan är stängd den dagen.');
+    [$open, $close] = $day;
     if ($startHour < $open || $startHour + $min > $close) {
-        return $fail('Pass måste starta mellan ' . tvatt_pad($open) . ':00 och ' . tvatt_pad($close - $min) . ':00.');
+        return $fail('Den dagen kan pass starta mellan ' . tvatt_pad($open) . ':00 och ' . tvatt_pad($close - $min) . ':00.');
     }
 
     // Innevarande timme får bokas (man kan boka "nu"), men inte tidigare än så.

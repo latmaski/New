@@ -83,6 +83,7 @@ test('hyresvärden ändrar bokningsreglerna', async (t) => {
   const current = await admin('GET', '/api/properties/pukevagen/rules');
   assert.deepEqual(current.body.rules, {
     openHour: 6, closeHour: 23, passHours: 4, minPassHours: 1, maxActiveBookings: 2, bookingHorizonDays: 28,
+    days: Array(7).fill([6, 23]),
   });
 
   const rules = { openHour: 7, closeHour: 22, passHours: 3, minPassHours: 3, maxActiveBookings: 3, bookingHorizonDays: 14 };
@@ -98,7 +99,7 @@ test('hyresvärden ändrar bokningsreglerna', async (t) => {
 
   assert.equal((await admin('POST', '/api/properties/pukevagen/rules', rules)).status, 200);
   assert.deepEqual((await env.client()('GET', '/api/config')).body.passHours, 3);
-  assert.deepEqual((await res('GET', '/api/bookings')).body.rules, rules);
+  assert.deepEqual((await res('GET', '/api/bookings')).body.rules, { ...rules, days: Array(7).fill([7, 22]) });
 
   // Nya regler gäller för nya bokningar; det gamla passet 06–10 står kvar.
   assert.match((await book(res, '2026-10-11', 6)).body.error, /mellan 07:00 och 19:00/);
@@ -115,4 +116,41 @@ test('hyresvärden ändrar bokningsreglerna', async (t) => {
   // Återställ till standard.
   assert.equal((await admin('DELETE', '/api/properties/pukevagen/rules')).body.rules.passHours, 4);
   assert.equal((await env.client()('GET', '/api/config')).body.closeHour, 23);
+});
+
+test('olika öppettider olika dagar', async (t) => {
+  const env = await setup('2026-10-07T12:30:00+02:00'); // onsdag
+  t.after(env.close);
+  const admin = await env.admin();
+  const base = { passHours: 4, minPassHours: 1, maxActiveBookings: 3, bookingHorizonDays: 28 };
+  const weekdays = [6, 23];
+  // mån–fre 06–23, lördag 08–18, söndag stängt
+  const days = [weekdays, weekdays, weekdays, weekdays, weekdays, [8, 18], null];
+  const post = (body) => admin('POST', '/api/properties/pukevagen/rules', body);
+
+  assert.match((await post({ ...base, days: [...days.slice(0, 6)] })).body.error, /sju dagar/);
+  assert.match((await post({ ...base, days: Array(7).fill(null) })).body.error, /Minst en dag/);
+  assert.match((await post({ ...base, days: [...days.slice(0, 5), [18, 8], null] })).body.error, /lördag.*efter öppningstiden/);
+  assert.match((await post({ ...base, days: [...days.slice(0, 5), [8, 8.5], null] })).body.error, /lördag/);
+  assert.match((await post({ ...base, passHours: 2, minPassHours: 2, days: [...days.slice(0, 5), [8, 9], null] })).body.error, /lördag.*kortare tid än kortaste pass/);
+  const saved = await post({ ...base, days });
+  assert.equal(saved.status, 200);
+  assert.deepEqual(saved.body.rules.days, days);
+  assert.deepEqual([saved.body.rules.openHour, saved.body.rules.closeHour], [6, 23]);
+
+  const r = await env.login('1');
+  const book = (date, startHour, hours) => r('POST', '/api/bookings', { date, startHour, hours });
+  // Söndag 11/10: stängt.
+  assert.match((await book('2026-10-11', 10)).body.error, /stängd den dagen/);
+  // Lördag 10/10: 08–18, sista hela pass 14, kort pass fram till 18.
+  assert.match((await book('2026-10-10', 7)).body.error, /mellan 08:00 och 17:00/);
+  assert.equal((await book('2026-10-10', 14)).body.endHour, 18);
+  assert.match((await book('2026-10-10', 18)).body.error, /mellan 08:00 och 17:00/);
+  // Fredag 9/10: vanliga tider, kort pass före stängning 23.
+  assert.equal((await book('2026-10-09', 20, 3)).body.endHour, 23);
+  // Flytt till en stängd dag nekas.
+  const p = (await r('GET', '/api/bookings?from=2026-10-09&to=2026-10-09')).body.bookings[0];
+  assert.match((await r('POST', `/api/bookings/${p.id}`, { date: '2026-10-11', startHour: 10 })).body.error, /stängd/);
+  // De boende får schemat.
+  assert.deepEqual((await r('GET', '/api/bookings')).body.rules.days, days);
 });

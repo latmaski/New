@@ -218,6 +218,9 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; user-select:
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .rules-summary { margin: 14px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line-soft); font-size: 13px; color: var(--ink-2); }
 .form-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.grid .day-head.closed { color: var(--ink-3); }
+.grid .day-head.closed b { color: var(--ink-3); }
+.day-strip button.closed:not([aria-selected="true"]) { opacity: .5; }
 .cell.closed { background: var(--surface-2); opacity: .6; cursor: default; }
 .link-btn { display: block; margin: 16px auto 0; background: none; border: 0; color: var(--accent); font-size: 13.5px; text-decoration: underline; text-underline-offset: 3px; }
 .admin-login-label { margin: 0; font-weight: 600; font-size: 15px; }

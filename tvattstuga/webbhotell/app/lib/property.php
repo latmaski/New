@@ -68,12 +68,29 @@ function tvatt_property_config(array $config, array $entry, TvattStore $store): 
     foreach (TVATT_RULE_KEYS as $key) {
         if (isset($store->data['settings'][$key])) $c[$key] = (int) $store->data['settings'][$key];
     }
-    return $c;
+    if (array_key_exists('days', $store->data['settings'] ?? [])) $c['days'] = $store->data['settings']['days'];
+    return tvatt_normalize_rules($c);
+}
+
+// Fyller i veckoschemat (samma tider alla dagar om inget annat sagts) och
+// sätter openHour/closeHour till tidigaste öppning och senaste stängning.
+function tvatt_normalize_rules(array $r): array
+{
+    if (empty($r['days']) || !is_array($r['days']) || count($r['days']) !== 7) {
+        $r['days'] = array_fill(0, 7, [(int) $r['openHour'], (int) $r['closeHour']]);
+    }
+    $open = array_filter($r['days']);
+    if ($open) {
+        $r['openHour'] = min(array_column($open, 0));
+        $r['closeHour'] = max(array_column($open, 1));
+    }
+    return $r;
 }
 
 function tvatt_rules(array $config): array
 {
-    return array_intersect_key($config, array_flip(TVATT_RULE_KEYS));
+    $config = tvatt_normalize_rules($config);
+    return array_intersect_key($config, array_flip(TVATT_RULE_KEYS)) + ['days' => $config['days']];
 }
 
 // Returnerar ['error' => ?string, 'rules' => array].
@@ -82,20 +99,44 @@ function tvatt_validate_rules($body): array
     $fail = function (string $error) { return ['error' => $error, 'rules' => []]; };
     if (!is_array($body)) return $fail('Ogiltig förfrågan.');
     $r = [];
-    foreach (TVATT_RULE_KEYS as $key) {
+    foreach (['passHours', 'minPassHours', 'maxActiveBookings', 'bookingHorizonDays'] as $key) {
         if (!isset($body[$key]) || !is_int($body[$key])) return $fail('Alla fält måste vara heltal.');
         $r[$key] = $body[$key];
     }
-    if ($r['openHour'] < 0 || $r['openHour'] > 23) return $fail('Öppningstiden måste vara mellan 00 och 23.');
-    if ($r['closeHour'] < 1 || $r['closeHour'] > 24) return $fail('Stängningstiden måste vara mellan 01 och 24.');
-    if ($r['closeHour'] <= $r['openHour']) return $fail('Stängningstiden måste vara efter öppningstiden.');
-    if ($r['passHours'] < 1 || $r['passHours'] > $r['closeHour'] - $r['openHour']) {
+    // Veckoschema: 7 dagar (måndag först), varje dag [öppnar, stänger] eller null = stängt.
+    // Utan schema gäller openHour/closeHour alla dagar.
+    $days = $body['days'] ?? null;
+    if ($days === null) {
+        if (!isset($body['openHour'], $body['closeHour']) || !is_int($body['openHour']) || !is_int($body['closeHour'])) {
+            return $fail('Alla fält måste vara heltal.');
+        }
+        $days = array_fill(0, 7, [$body['openHour'], $body['closeHour']]);
+    }
+    if (!is_array($days) || count($days) !== 7 || array_keys($days) !== range(0, 6)) return $fail('Veckoschemat måste ha sju dagar.');
+    $names = ['måndag', 'tisdag', 'onsdag', 'torsdag', 'fredag', 'lördag', 'söndag'];
+    $longest = 0;
+    foreach ($days as $i => $d) {
+        if ($d === null) continue;
+        if (!is_array($d) || count($d) !== 2 || !is_int($d[0] ?? null) || !is_int($d[1] ?? null)) return $fail("Ogiltiga tider för {$names[$i]}.");
+        [$o, $c] = $d;
+        if ($o < 0 || $o > 23 || $c < 1 || $c > 24) return $fail("Tiderna för {$names[$i]} måste ligga mellan 00 och 24.");
+        if ($c <= $o) return $fail("På {$names[$i]} måste stängningstiden vara efter öppningstiden.");
+        $longest = max($longest, $c - $o);
+    }
+    if ($longest === 0) return $fail('Minst en dag måste vara öppen.');
+    $r['days'] = array_values($days);
+    if ($r['passHours'] < 1 || $r['passHours'] > $longest) {
         return $fail('Passets längd måste vara minst 1 timme och rymmas inom öppettiden.');
     }
     if ($r['minPassHours'] < 1 || $r['minPassHours'] > $r['passHours']) return $fail('Kortaste pass måste vara mellan 1 timme och passets längd.');
+    foreach ($days as $i => $d) {
+        if ($d !== null && $d[1] - $d[0] < $r['minPassHours']) {
+            return $fail("På {$names[$i]} är det öppet kortare tid än kortaste pass ({$r['minPassHours']} h).");
+        }
+    }
     if ($r['maxActiveBookings'] < 1 || $r['maxActiveBookings'] > 20) return $fail('Max antal pass måste vara mellan 1 och 20.');
     if ($r['bookingHorizonDays'] < 1 || $r['bookingHorizonDays'] > 365) return $fail('Hur långt fram man får boka måste vara mellan 1 och 365 dagar.');
-    return ['error' => null, 'rules' => $r];
+    return ['error' => null, 'rules' => tvatt_normalize_rules($r)];
 }
 
 function tvatt_sort_bookings(array $bookings): array

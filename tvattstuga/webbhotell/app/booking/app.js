@@ -157,6 +157,10 @@ function renderHeader() {
     btn.setAttribute('aria-selected', String(d === state.selectedDay));
     if (d === state.now.date) btn.classList.add('today');
     btn.innerHTML = `${fmt(d, { weekday: 'short' }).replace('.', '')}<b>${toDate(d).getUTCDate()}</b>`;
+    if (!dayHours(state.config, d)) {
+      btn.classList.add('closed');
+      btn.title = 'Stängt';
+    }
     btn.addEventListener('click', () => { state.selectedDay = d; render(); });
     strip.append(btn);
   }
@@ -164,7 +168,8 @@ function renderHeader() {
 
 // Lediga timmar från hour fram till nästa pass (eller stängning).
 function availableHours(date, hour, ignoreId) {
-  let limit = state.config.closeHour;
+  const day = dayHours(state.config, date);
+  let limit = day ? day[1] : 0;
   for (const b of state.bookings) {
     if (b.id === ignoreId || b.date !== date) continue;
     if (b.startHour <= hour && hour < b.endHour) return { hours: 0, limit };
@@ -175,7 +180,8 @@ function availableHours(date, hour, ignoreId) {
 
 // Där den lediga luckan börjar: föregående pass slut, öppning eller (idag) nuvarande timme.
 function gapStart(date, hour, ignoreId) {
-  let start = state.config.openHour;
+  const day = dayHours(state.config, date);
+  let start = day ? day[0] : 0;
   for (const b of state.bookings) {
     if (b.id === ignoreId || b.date !== date) continue;
     if (b.endHour <= hour && b.endHour > start) start = b.endHour;
@@ -188,9 +194,12 @@ const bookable = (status) => status.kind === 'start' || status.kind === 'short';
 // ignoreId: passet som flyttas räknas varken som krock eller mot maxantalet.
 // 'start' = helt pass får plats, 'short' = bara ett kortare pass får plats.
 function cellStatus(date, hour, ignoreId = state.moving && state.moving.id) {
-  const { closeHour, passHours, maxActiveBookings, bookingHorizonDays } = state.config;
+  const { passHours, maxActiveBookings, bookingHorizonDays } = state.config;
   const minHours = state.config.minPassHours || passHours;
-  if (hour < state.config.openHour || hour >= closeHour) return { kind: 'closed' };
+  const day = dayHours(state.config, date);
+  if (!day) return { kind: 'closed', reason: 'Tvättstugan är stängd den här dagen.' };
+  if (hour < day[0] || hour >= day[1]) return { kind: 'closed', reason: `Öppet ${pad(day[0])}–${pad(day[1])} den här dagen.` };
+  const closeHour = day[1];
   const start = hourIndex(date, hour);
   if (start < hourIndex(state.now.date, state.now.hour)) return { kind: 'past', reason: 'Tiden har redan passerat.' };
   if (date > addDays(state.now.date, bookingHorizonDays)) return { kind: 'blocked', reason: `Du kan boka högst ${bookingHorizonDays} dagar fram.` };
@@ -218,9 +227,11 @@ function shortWarning(status, startHour) {
 function renderGrid() {
   const { passHours } = state.config;
   const days = narrow.matches ? [state.selectedDay] : Array.from({ length: 7 }, (_, i) => addDays(state.weekStart, i));
-  // Visa även timmar utanför öppettiden om det finns pass där (bokade före en regeländring).
-  let openHour = state.config.openHour;
-  let closeHour = state.config.closeHour;
+  // Raderna täcker de visade dagarnas öppettider, och även pass utanför dem
+  // (bokade före en regeländring).
+  const open = days.map((d) => dayHours(state.config, d)).filter(Boolean);
+  let openHour = open.length ? Math.min(...open.map((d) => d[0])) : state.config.openHour;
+  let closeHour = open.length ? Math.max(...open.map((d) => d[1])) : state.config.closeHour;
   for (const b of state.bookings) {
     if (!days.includes(b.date)) continue;
     openHour = Math.min(openHour, b.startHour);
@@ -238,8 +249,9 @@ function renderGrid() {
 
   days.forEach((date, i) => {
     const head = document.createElement('div');
-    head.className = `day-head${date === state.now.date ? ' today' : ''}`;
-    head.innerHTML = `<b></b>${fmt(date, { day: 'numeric', month: 'short' })}`;
+    const closed = !dayHours(state.config, date);
+    head.className = `day-head${date === state.now.date ? ' today' : ''}${closed ? ' closed' : ''}`;
+    head.innerHTML = `<b></b>${closed ? 'Stängt' : fmt(date, { day: 'numeric', month: 'short' })}`;
     head.querySelector('b').textContent = fmt(date, { weekday: 'short' }).replace('.', '');
     place(head, i + 2, 1);
   });
@@ -275,7 +287,6 @@ function renderGrid() {
       } else {
         cell.tabIndex = -1;
         cell.setAttribute('aria-hidden', 'true');
-        if (status.kind === 'closed') cell.title = 'Utanför öppettiden.';
         if (status.reason && status.kind !== 'past') {
           cell.title = status.reason;
           cell.addEventListener('click', () => toast(status.reason, true));
@@ -540,7 +551,7 @@ const cellAt = (x, y) => document.elementsFromPoint(x, y).find((el) => el.classL
 // Dra ett eget pass till en ny tid. Ett klick utan att dra öppnar "Ändra".
 function startDrag(e, b, el) {
   if (e.button !== 0) return;
-  const { openHour, closeHour, passHours } = state.config;
+  const { passHours } = state.config;
   const gridOpen = state.gridOpen;
   const startX = e.clientX;
   const startY = e.clientY;
@@ -563,6 +574,7 @@ function startDrag(e, b, el) {
     const cell = cellAt(ev.clientX, ev.clientY);
     if (!cell) return;
     const date = cell.dataset.date;
+    const [openHour, closeHour] = dayHours(state.config, date) || [0, 24];
     let start = Math.max(openHour, Math.min(closeHour - passHours, Number(cell.dataset.hour) - grabOffset));
     // Släpp där pekaren är; finns bara en kortare lucka där blir det ett kort pass.
     let status = cellStatus(date, start, b.id);
@@ -574,7 +586,7 @@ function startDrag(e, b, el) {
     const span = ok ? status.hours : passHours;
     // Markering ovanpå allt annat i rutnätet, så den syns även över andras pass.
     ghost.className = `drop-ghost ${ok ? (status.kind === 'short' ? 'ok short' : 'ok') : 'bad'}`;
-    ghost.textContent = !ok ? 'Upptaget' : `${pad(start)}–${pad(start + span)}${status.kind === 'short' ? ` · bara ${span} h` : ''}`;
+    ghost.textContent = !ok ? (status.kind === 'closed' ? 'Stängt' : 'Upptaget') : `${pad(start)}–${pad(start + span)}${status.kind === 'short' ? ` · bara ${span} h` : ''}`;
     ghost.style.gridColumn = cell.style.gridColumn;
     ghost.style.gridRow = `${start - gridOpen + 2} / span ${Math.max(1, Math.min(span, closeHour - start))}`;
     $('grid').append(ghost);
@@ -644,7 +656,8 @@ async function startApp() {
   state.now = first.now;
   applyRules(first.rules);
   // Efter sista starttiden finns inget kvar att boka idag – visa imorgon.
-  const lastStart = state.config.closeHour - (state.config.minPassHours || state.config.passHours);
+  const today = dayHours(state.config, state.now.date);
+  const lastStart = today ? today[1] - (state.config.minPassHours || state.config.passHours) : -1;
   const firstDay = state.now.hour > lastStart ? addDays(state.now.date, 1) : state.now.date;
   state.weekStart = mondayOf(firstDay);
   state.selectedDay = firstDay;

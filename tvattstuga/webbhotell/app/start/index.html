@@ -92,10 +92,14 @@
             <h2 id="rules-title">Bokningsregler</h2>
             <p class="muted small">Gäller direkt för alla nya bokningar och flyttar. Redan bokade pass påverkas inte.</p>
             <form id="rules-form" class="rules-form" novalidate>
-              <div class="field-row">
-                <label class="field"><span>Öppnar</span><select id="r-open"></select></label>
-                <label class="field"><span>Stänger</span><select id="r-close"></select></label>
-              </div>
+              <fieldset class="week">
+                <legend>Öppettider</legend>
+                <table class="week-table">
+                  <thead><tr><th scope="col">Dag</th><th scope="col">Öppnar</th><th scope="col">Stänger</th><th scope="col">Stängt</th></tr></thead>
+                  <tbody id="r-days"></tbody>
+                </table>
+                <button id="r-copy-monday" class="link-btn week-copy" type="button">Samma tider som måndag alla dagar</button>
+              </fieldset>
               <label class="field"><span>Passets längd</span><select id="r-pass"></select></label>
               <label class="field"><span>Kortaste pass</span><select id="r-min"></select>
                 <small>När ett helt pass inte får plats före nästa pass eller stängningen.</small></label>

@@ -292,21 +292,52 @@ $('copy-password').addEventListener('click', () => copyText($('reset-password').
 
 // ---------- Bokningsregler ----------
 const RULE_FIELDS = {
-  openHour: 'r-open', closeHour: 'r-close', passHours: 'r-pass', minPassHours: 'r-min',
-  maxActiveBookings: 'r-max', bookingHorizonDays: 'r-horizon',
+  passHours: 'r-pass', minPassHours: 'r-min', maxActiveBookings: 'r-max', bookingHorizonDays: 'r-horizon',
 };
 
+// Veckoschemat: en rad per dag med öppnar/stänger och "Stängt".
+function readDays() {
+  return [...$('r-days').rows].map((row) => {
+    if (row.querySelector('.d-closed').checked) return null;
+    const open = Number(row.querySelector('.d-open').value);
+    return [open, Math.max(open + 1, Number(row.querySelector('.d-close').value))];
+  });
+}
+
+function renderDays(days) {
+  const body = $('r-days');
+  body.innerHTML = '';
+  days.forEach((d, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<th scope="row"></th><td><select class="d-open" aria-label="Öppnar ${DAY_NAMES[i]}"></select></td>`
+      + `<td><select class="d-close" aria-label="Stänger ${DAY_NAMES[i]}"></select></td>`
+      + `<td><input class="d-closed" type="checkbox" aria-label="Stängt ${DAY_NAMES[i]}"></td>`;
+    tr.querySelector('th').textContent = DAY_NAMES[i].charAt(0).toUpperCase() + DAY_NAMES[i].slice(1);
+    const [open, close] = d || days.find(Boolean) || [6, 23];
+    const fill = (sel, values, selected) => {
+      for (const v of values) sel.add(new Option(`${pad(v)}:00`, String(v), false, v === selected));
+    };
+    fill(tr.querySelector('.d-open'), range(0, 23), open);
+    fill(tr.querySelector('.d-close'), range(open + 1, 24), Math.max(close, open + 1));
+    tr.querySelector('.d-closed').checked = !d;
+    tr.classList.toggle('is-closed', !d);
+    for (const el of tr.querySelectorAll('select')) el.disabled = !d;
+    tr.addEventListener('change', () => renderRulesForm(readRulesForm()));
+    body.append(tr);
+  });
+}
+
 function readRulesForm() {
-  const r = {};
+  const r = { days: readDays() };
   for (const [key, id] of Object.entries(RULE_FIELDS)) r[key] = Number.parseInt($(id).value, 10);
   return r;
 }
 
-// Fyller formuläret och håller beroende val (längd ≤ öppettid, kortaste ≤ längd) giltiga.
+// Fyller formuläret och håller beroende val (längd ≤ längsta öppettid, kortaste ≤ längd) giltiga.
 function renderRulesForm(r) {
-  fillSelect('r-open', range(0, 23), (h) => `${pad(h)}:00`, r.openHour);
-  fillSelect('r-close', range(r.openHour + 1, 24), (h) => `${pad(h)}:00`, Math.max(r.closeHour, r.openHour + 1));
-  const span = Number($('r-close').value) - r.openHour;
+  const days = r.days || Array(7).fill([r.openHour, r.closeHour]);
+  renderDays(days);
+  const span = Math.max(1, ...days.filter(Boolean).map((d) => d[1] - d[0]));
   fillSelect('r-pass', range(1, Math.min(12, span)), hoursText, Math.min(r.passHours, span));
   const pass = Number($('r-pass').value);
   fillSelect('r-min', range(1, pass), (h) => (h === pass ? `Bara hela pass (${hoursText(h)})` : hoursText(h)), Math.min(r.minPassHours, pass));
@@ -318,8 +349,9 @@ function renderRulesForm(r) {
 
 function updateRulesSummary() {
   const r = readRulesForm();
-  const valid = Object.values(r).every(Number.isInteger) && r.maxActiveBookings >= 1 && r.bookingHorizonDays >= 1;
-  $('rules-summary').textContent = valid ? rulesSummary(r) : 'Fyll i alla fält.';
+  const valid = Object.keys(RULE_FIELDS).every((k) => Number.isInteger(r[k])) && r.maxActiveBookings >= 1 && r.bookingHorizonDays >= 1;
+  if (!r.days.some(Boolean)) $('rules-summary').textContent = 'Minst en dag måste vara öppen.';
+  else $('rules-summary').textContent = valid ? rulesSummary(r) : 'Fyll i alla fält.';
 }
 
 async function loadRules() {
@@ -328,9 +360,11 @@ async function loadRules() {
   renderRulesForm(data.rules);
 }
 
-for (const id of ['r-open', 'r-close', 'r-pass']) {
-  $(id).addEventListener('change', () => renderRulesForm(readRulesForm()));
-}
+$('r-pass').addEventListener('change', () => renderRulesForm(readRulesForm()));
+$('r-copy-monday').addEventListener('click', () => {
+  const r = readRulesForm();
+  renderRulesForm({ ...r, days: Array(7).fill(r.days[0] || [6, 23]) });
+});
 for (const id of ['r-min', 'r-max', 'r-horizon']) {
   $(id).addEventListener('input', updateRulesSummary);
 }
