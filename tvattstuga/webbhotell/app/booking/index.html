@@ -12,7 +12,10 @@
 
 <main id="login" class="login" hidden>
   <div class="login-card">
-    <img class="login-logo" src="logo.svg?v=dev" alt="CJA Fastighet &amp; Bygg AB" width="200" height="56">
+    <picture>
+      <source srcset="logo-dark.svg?v=dev" media="(prefers-color-scheme: dark)">
+      <img class="login-logo" src="logo.svg?v=dev" alt="CJA Fastighet &amp; Bygg AB" width="200" height="51">
+    </picture>
     <p class="eyebrow">Tvättstugan</p>
     <h1 class="building-name"></h1>
     <form id="login-form" novalidate>

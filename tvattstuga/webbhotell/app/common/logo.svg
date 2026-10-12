@@ -6,11 +6,6 @@
     .roof { fill: none; stroke: #E3A43B; stroke-width: 4.5; stroke-linecap: round; stroke-linejoin: round; }
     .name { fill: #13201F; font: 800 29px "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif; letter-spacing: 1.5px; }
     .sub { fill: #4C5A58; font: 600 10.5px "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif; letter-spacing: 2.2px; }
-    @media (prefers-color-scheme: dark) {
-      .tile, .door { fill: #2E6F8E; }
-      .name { fill: #EEF3F2; }
-      .sub { fill: #A9B7B4; }
-    }
   </style>
   <rect class="tile" x="2" y="4" width="56" height="56" rx="13"/>
   <path class="house" d="M17 33 L30 21.5 L43 33 V49 H17 Z"/>

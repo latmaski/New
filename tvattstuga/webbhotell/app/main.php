@@ -16,7 +16,7 @@ require __DIR__ . '/lib/booking.php';
 require __DIR__ . '/lib/site.php';
 
 const TVATT_ASSETS = [
-    'common' => ['common.js' => 'common/common.js', 'style.css' => 'common/style.css', 'logo.svg' => 'common/logo.svg', 'icon.svg' => 'common/icon.svg'],
+    'common' => ['common.js' => 'common/common.js', 'style.css' => 'common/style.css', 'logo.svg' => 'common/logo.svg', 'logo-dark.svg' => 'common/logo-dark.svg', 'icon.svg' => 'common/icon.svg'],
     'site' => ['start.js' => 'start/start.js', 'start.css' => 'start/start.css'],
     'property' => ['app.js' => 'booking/app.js'],
 ];
