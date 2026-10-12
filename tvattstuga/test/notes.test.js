@@ -50,7 +50,7 @@ test('anslagstavla med datum och tid', async (t) => {
   assert.match((await a('POST', '/api/board', { text: 'x'.repeat(501) })).body.error, /högst 500/);
   assert.equal((await a('POST', '/api/board', { text: '<b>Luddfiltret</b> är trasigt\n\n\n\nRing värden' })).status, 201);
   env.setClock('2026-10-07T13:05:00+02:00');
-  await admin('POST', '/api/board', { text: 'Reparatör kommer fredag 9–12.' });
+  await admin('POST', '/api/properties/pukevagen/board', { text: 'Reparatör kommer fredag 9–12.' });
 
   const posts = (await b('GET', '/api/board')).body.posts;
   assert.equal(posts.length, 2);
@@ -62,8 +62,8 @@ test('anslagstavla med datum och tid', async (t) => {
   const [byAdmin, byA] = posts;
   assert.equal((await b('DELETE', `/api/board/${byA.id}`)).status, 403);
   assert.equal((await a('DELETE', `/api/board/${byA.id}`)).status, 200);
-  assert.equal((await admin('GET', '/api/board')).body.posts[0].canDelete, true);
-  assert.equal((await admin('DELETE', `/api/board/${byAdmin.id}`)).status, 200);
+  assert.equal((await admin('GET', '/api/properties/pukevagen/board')).body.posts[0].canDelete, true);
+  assert.equal((await admin('DELETE', `/api/properties/pukevagen/board/${byAdmin.id}`)).status, 200);
   assert.equal((await a('DELETE', `/api/board/${byAdmin.id}`)).status, 404);
   assert.deepEqual((await a('GET', '/api/board')).body.posts, []);
 });

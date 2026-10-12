@@ -72,7 +72,10 @@ legend { font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 
 
 /* Appen */
 .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 24px; background: var(--surface); border-bottom: 1px solid var(--line); }
-.brand { display: flex; flex-direction: column; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand > div { display: flex; flex-direction: column; }
+.brand-mark { width: 36px; height: 36px; flex-shrink: 0; }
+.login-logo { display: block; width: 200px; height: auto; margin: 0 0 22px; }
 .brand strong { font-size: 18px; letter-spacing: -.01em; }
 .who { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .me-pill { font-weight: 600; font-size: 13.5px; padding: 6px 12px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); }

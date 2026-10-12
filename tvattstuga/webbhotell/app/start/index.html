@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>{{TITLE}}</title>
+<link rel="icon" href="icon.svg?v=dev" type="image/svg+xml">
+<link rel="stylesheet" href="style.css?v=dev">
+<link rel="stylesheet" href="start.css?v=dev">
+</head>
+<body class="start-page">
+
+<main id="landing" class="landing">
+  <div class="landing-inner">
+    <img class="landing-logo" src="logo.svg?v=dev" alt="CJA Fastighet &amp; Bygg AB" width="378" height="96">
+    <h1 class="sr-only">CJA Fastighet &amp; Bygg AB</h1>
+    <section class="links-card" aria-labelledby="links-title">
+      <h2 id="links-title">Boka tvättstugan</h2>
+      <p class="muted">Välj din fastighet och logga in med din lägenhets lösenord.</p>
+      <ul id="property-links" class="property-links"></ul>
+    </section>
+  </div>
+  <footer class="landing-foot">
+    <button id="open-admin-login" class="link-btn" type="button">Hyresvärd? Logga in</button>
+  </footer>
+</main>
+
+<div id="admin" hidden>
+  <header class="top">
+    <div class="brand">
+      <img class="brand-mark" src="icon.svg?v=dev" alt="" width="36" height="36">
+      <div>
+        <span class="eyebrow">CJA Fastighet &amp; Bygg AB</span>
+        <strong>Administration</strong>
+      </div>
+    </div>
+    <div class="who">
+      <span class="me-pill">Hyresvärd</span>
+      <button id="btn-password" class="btn ghost small" type="button">Byt lösenord</button>
+      <button id="btn-logout" class="btn ghost small" type="button">Logga ut</button>
+    </div>
+  </header>
+
+  <div class="admin-shell">
+    <nav class="panel property-nav" aria-labelledby="nav-title">
+      <h2 id="nav-title">Fastigheter</h2>
+      <ul id="property-nav" class="property-nav-list"></ul>
+      <button id="btn-add-property" class="btn ghost wide-btn" type="button">+ Lägg till fastighet</button>
+    </nav>
+
+    <main id="property-view" class="property-view">
+      <div class="property-head">
+        <div>
+          <p class="eyebrow">Tvättstuga</p>
+          <h1 id="p-name"></h1>
+          <a id="p-url" class="p-url" target="_blank" rel="noopener"></a>
+        </div>
+        <button id="btn-edit-property" class="btn ghost small" type="button">Ändra namn och adress</button>
+      </div>
+
+      <div class="admin-layout">
+        <section class="panel" aria-labelledby="stats-title">
+          <div class="panel-head">
+            <div>
+              <h2 id="stats-title">Bokade pass per lägenhet</h2>
+              <p id="stats-sub" class="muted small"></p>
+            </div>
+            <div id="period-chips" class="chips" role="radiogroup" aria-label="Period"></div>
+          </div>
+          <div id="stats-bars" class="bars"></div>
+          <div class="table-wrap">
+            <table class="stats-table">
+              <thead>
+                <tr><th scope="col">Lägenhet</th><th scope="col">Denna månad</th><th scope="col">Förra månaden</th><th scope="col">I år</th><th scope="col">Totalt</th><th scope="col">Kommande</th></tr>
+              </thead>
+              <tbody id="stats-body"></tbody>
+              <tfoot id="stats-foot"></tfoot>
+            </table>
+          </div>
+        </section>
+
+        <div class="admin-side">
+          <section class="panel" aria-labelledby="apts-title">
+            <h2 id="apts-title">Lägenheter och lösenord</h2>
+            <p class="muted small">Ge en lägenhet ett nytt lösenord om någon har glömt sitt eller när nya boende flyttar in. Lägenheten loggas då ut på alla enheter.</p>
+            <ul id="pw-admin-list" class="pw-admin-list"></ul>
+            <button id="btn-add-apartment" class="btn ghost small add-apt" type="button">+ Lägg till lägenhet</button>
+          </section>
+
+          <section class="panel" aria-labelledby="rules-title">
+            <h2 id="rules-title">Bokningsregler</h2>
+            <p class="muted small">Gäller direkt för alla nya bokningar och flyttar. Redan bokade pass påverkas inte.</p>
+            <form id="rules-form" class="rules-form" novalidate>
+              <div class="field-row">
+                <label class="field"><span>Öppnar</span><select id="r-open"></select></label>
+                <label class="field"><span>Stänger</span><select id="r-close"></select></label>
+              </div>
+              <label class="field"><span>Passets längd</span><select id="r-pass"></select></label>
+              <label class="field"><span>Kortaste pass</span><select id="r-min"></select>
+                <small>När ett helt pass inte får plats före nästa pass eller stängningen.</small></label>
+              <div class="field-row">
+                <label class="field"><span>Max bokade pass</span><input id="r-max" type="number" min="1" max="20" inputmode="numeric"></label>
+                <label class="field"><span>Boka dagar fram</span><input id="r-horizon" type="number" min="1" max="365" inputmode="numeric"></label>
+              </div>
+              <p id="rules-summary" class="rules-summary"></p>
+              <p id="rules-error" class="form-error" role="alert"></p>
+              <div class="form-actions">
+                <button id="rules-reset" class="btn ghost small" type="button">Återställ standard</button>
+                <button class="btn primary" type="submit">Spara regler</button>
+              </div>
+            </form>
+          </section>
+
+          <section id="board" class="panel board" aria-labelledby="board-title">
+            <h2 id="board-title">Anslagstavla</h2>
+            <p class="muted small board-hint">Syns för de boende i fastigheten. Du kan ta bort alla inlägg.</p>
+            <form class="board-form">
+              <label class="sr-only" for="board-text">Skriv ett inlägg</label>
+              <textarea id="board-text" class="board-text" rows="2" maxlength="500" placeholder="Skriv något till de boende …"></textarea>
+              <div class="board-form-row"><span class="board-count muted small"></span><button class="btn primary small" type="submit">Publicera</button></div>
+            </form>
+            <ul class="board-list"></ul>
+            <button class="board-more link-btn" type="button" hidden>Visa äldre inlägg</button>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<dialog id="login-dialog" class="dialog">
+  <form id="login-form">
+    <h3>Logga in som hyresvärd</h3>
+    <label class="field"><span>Lösenord</span>
+      <input id="login-password" type="password" autocomplete="current-password" required></label>
+    <p id="login-error" class="form-error" role="alert"></p>
+    <div class="dialog-actions">
+      <button class="btn ghost" type="button" data-close>Avbryt</button>
+      <button class="btn primary" type="submit">Logga in</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="password-dialog" class="dialog">
+  <form id="password-form">
+    <h3>Byt lösenord</h3>
+    <label class="field"><span>Nuvarande lösenord</span>
+      <input id="pw-current" type="password" autocomplete="current-password" required></label>
+    <label class="field"><span>Nytt lösenord (minst 8 tecken)</span>
+      <input id="pw-new" type="password" autocomplete="new-password" minlength="8" required></label>
+    <p id="pw-error" class="form-error" role="alert"></p>
+    <div class="dialog-actions">
+      <button class="btn ghost" type="button" data-close>Avbryt</button>
+      <button class="btn primary" type="submit">Spara</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="property-dialog" class="dialog">
+  <form id="property-form">
+    <h3>Lägg till fastighet</h3>
+    <p class="muted small">Fastigheten får en egen bokningssida med egna lägenheter, regler och anslagstavla.</p>
+    <label class="field"><span>Namn</span>
+      <input id="np-name" type="text" maxlength="60" placeholder="T.ex. Storgatan 5" autocomplete="off" required></label>
+    <label class="field"><span>Kortnamn i adressen</span>
+      <input id="np-slug" type="text" maxlength="32" placeholder="storgatan" autocomplete="off" required pattern="[a-z0-9\-]+">
+      <small id="np-url-preview"></small></label>
+    <label class="field"><span>Lägenheter (en per rad)</span>
+      <textarea id="np-apartments" rows="5"></textarea></label>
+    <p id="np-error" class="form-error" role="alert"></p>
+    <div class="dialog-actions">
+      <button class="btn ghost" type="button" data-close>Avbryt</button>
+      <button class="btn primary" type="submit">Skapa</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="created-dialog" class="dialog wide">
+  <form method="dialog">
+    <h3 id="created-title"></h3>
+    <p id="created-url" class="muted"></p>
+    <p id="created-folder" class="warn" hidden></p>
+    <p class="muted small">Lösenorden visas bara nu. Skriv ut eller kopiera dem och dela ut till lägenheterna. Du kan alltid skapa nya lösenord senare.</p>
+    <table class="pw-table"><tbody id="created-passwords"></tbody></table>
+    <div class="dialog-actions">
+      <button id="created-copy" class="btn ghost" type="button">Kopiera</button>
+      <button id="created-print" class="btn ghost" type="button">Skriv ut</button>
+      <button class="btn primary" value="ok">Klar</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="edit-dialog" class="dialog">
+  <form id="edit-form">
+    <h3>Ändra fastighet</h3>
+    <label class="field"><span>Namn</span>
+      <input id="ep-name" type="text" maxlength="60" required autocomplete="off"></label>
+    <label class="field"><span>Adress till bokningen</span>
+      <input id="ep-url" type="url" placeholder="https://…" autocomplete="off">
+      <small>Lämna tomt för standardadressen. Fyll i om bokningen har en egen underdomän.</small></label>
+    <p id="ep-error" class="form-error" role="alert"></p>
+    <div class="dialog-actions">
+      <button class="btn ghost" type="button" data-close>Avbryt</button>
+      <button class="btn primary" type="submit">Spara</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="apt-dialog" class="dialog">
+  <form id="apt-form">
+    <h3 id="apt-title"></h3>
+    <label class="field"><span>Lägenhetens namn</span>
+      <input id="apt-name" type="text" maxlength="40" required autocomplete="off" placeholder="T.ex. Lägenhet 6"></label>
+    <p id="apt-error" class="form-error" role="alert"></p>
+    <div class="dialog-actions">
+      <button class="btn ghost" type="button" data-close>Avbryt</button>
+      <button class="btn primary" type="submit">Spara</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="reset-dialog" class="dialog">
+  <form method="dialog">
+    <h3 id="reset-title"></h3>
+    <p class="muted">Ett nytt lösenord skapas och det gamla slutar gälla direkt.</p>
+    <label class="check"><input id="reset-cancel" type="checkbox"> Nya boende flyttar in – avboka även lägenhetens kommande pass och byt kalenderlänk</label>
+    <div class="dialog-actions">
+      <button class="btn ghost" value="cancel">Avbryt</button>
+      <button class="btn primary" value="ok">Skapa nytt lösenord</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="reset-result" class="dialog">
+  <form method="dialog">
+    <h3 id="reset-result-title"></h3>
+    <p class="muted">Ge lösenordet till de boende. Det visas bara nu. De kan byta det själva efter inloggning.</p>
+    <div class="new-password"><code id="reset-password"></code><button id="copy-password" class="btn ghost small" type="button">Kopiera</button></div>
+    <p id="reset-cancelled" class="muted small"></p>
+    <div class="dialog-actions"><button class="btn primary" value="ok">Klar</button></div>
+  </form>
+</dialog>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="common.js?v=dev"></script>
+<script src="start.js?v=dev"></script>
+</body>
+</html>

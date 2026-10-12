@@ -17,9 +17,9 @@ test('hyresvärden loggar in och ser statistik per lägenhet', async (t) => {
 
   const admin = await env.login('admin');
   const me = await admin('GET', '/api/me');
-  assert.deepEqual(me.body, { apartmentId: 'admin', apartmentName: 'Hyresvärd', isAdmin: true });
+  assert.deepEqual(me.body, { name: 'Hyresvärd' });
 
-  const stats = await admin('GET', '/api/admin/stats');
+  const stats = await admin('GET', '/api/properties/pukevagen/stats');
   assert.equal(stats.status, 200);
   assert.equal(stats.body.apartments.length, 5);
   const [l1, l2, l3] = stats.body.apartments;
@@ -31,10 +31,10 @@ test('hyresvärden loggar in och ser statistik per lägenhet', async (t) => {
   assert.deepEqual(l2.months, { '2026-11': 1 });
   assert.deepEqual(l3.months, {});
 
-  // Hyresvärden kan inte boka, och boende kommer inte åt admin.
-  assert.equal((await admin('POST', '/api/bookings', { date: '2026-10-20', startHour: 8 })).status, 403);
-  assert.equal((await a('GET', '/api/admin/stats')).status, 403);
-  assert.equal((await env.client()('GET', '/api/admin/stats')).status, 401);
+  // Hyresvärdens inloggning gäller inte på bokningssidan, och utan den nås inte administrationen.
+  assert.equal((await admin('POST', '/pukevagen/api/bookings', { date: '2026-10-20', startHour: 8 })).status, 401);
+  assert.equal((await env.client('')('GET', '/api/properties/pukevagen/stats')).status, 401);
+  assert.equal((await a('GET', '/api/properties/pukevagen/stats')).status, 404);
 });
 
 test('hyresvärden ger en lägenhet nytt lösenord, med eller utan avbokning', async (t) => {
@@ -45,9 +45,9 @@ test('hyresvärden ger en lägenhet nytt lösenord, med eller utan avbokning', a
   await resident('POST', '/api/bookings', { date: '2026-10-10', startHour: 8 }); // kommande
   const admin = await env.login('admin');
 
-  assert.equal((await admin('POST', '/api/admin/reset-password', { apartmentId: '9' })).status, 400);
+  assert.equal((await admin('POST', '/api/properties/pukevagen/reset-password', { apartmentId: '9' })).status, 400);
 
-  const forgot = await admin('POST', '/api/admin/reset-password', { apartmentId: '3' });
+  const forgot = await admin('POST', '/api/properties/pukevagen/reset-password', { apartmentId: '3' });
   assert.equal(forgot.status, 200);
   assert.equal(forgot.body.cancelled, 0);
   assert.match(forgot.body.password, /^[a-z0-9]{10}$/);
@@ -57,9 +57,9 @@ test('hyresvärden ger en lägenhet nytt lösenord, med eller utan avbokning', a
   assert.equal((await back('POST', '/api/login', { apartmentId: '3', password: forgot.body.password })).status, 200);
   assert.equal((await back('GET', '/api/bookings')).body.mine.length, 2);
 
-  const moved = await admin('POST', '/api/admin/reset-password', { apartmentId: '3', cancelUpcoming: true });
+  const moved = await admin('POST', '/api/properties/pukevagen/reset-password', { apartmentId: '3', cancelUpcoming: true });
   assert.equal(moved.body.cancelled, 1);
-  const stats = await admin('GET', '/api/admin/stats');
+  const stats = await admin('GET', '/api/properties/pukevagen/stats');
   assert.equal(stats.body.apartments[2].total, 1); // det pågående passet står kvar
   const fresh = env.client();
   await fresh('POST', '/api/login', { apartmentId: '3', password: moved.body.password });
@@ -67,7 +67,8 @@ test('hyresvärden ger en lägenhet nytt lösenord, med eller utan avbokning', a
 
   // Hyresvärden kan byta sitt eget lösenord.
   assert.equal((await admin('POST', '/api/password', { currentPassword: env.passwords.admin, newPassword: 'vard12345' })).status, 200);
-  assert.equal((await env.client()('POST', '/api/login', { apartmentId: 'admin', password: 'vard12345' })).status, 200);
+  assert.equal((await env.client('')('POST', '/api/login', { password: 'vard12345' })).status, 200);
+  assert.equal((await env.client('')('POST', '/api/login', { password: env.passwords.admin })).status, 401);
 });
 
 test('hyresvärden ändrar bokningsreglerna', async (t) => {
@@ -79,7 +80,7 @@ test('hyresvärden ändrar bokningsreglerna', async (t) => {
   const before = await book(res, '2026-10-10', 6); // giltigt enligt standardreglerna
   assert.equal(before.status, 201);
 
-  const current = await admin('GET', '/api/admin/rules');
+  const current = await admin('GET', '/api/properties/pukevagen/rules');
   assert.deepEqual(current.body.rules, {
     openHour: 6, closeHour: 23, passHours: 4, minPassHours: 1, maxActiveBookings: 2, bookingHorizonDays: 28,
   });
@@ -92,10 +93,10 @@ test('hyresvärden ändrar bokningsreglerna', async (t) => {
     [{ ...rules, maxActiveBookings: 0 }, /Max antal pass/],
     [{ ...rules, bookingHorizonDays: '14' }, /heltal/],
   ];
-  for (const [body, msg] of bad) assert.match((await admin('POST', '/api/admin/rules', body)).body.error, msg);
-  assert.equal((await res('POST', '/api/admin/rules', rules)).status, 403);
+  for (const [body, msg] of bad) assert.match((await admin('POST', '/api/properties/pukevagen/rules', body)).body.error, msg);
+  assert.equal((await env.client('')('POST', '/api/properties/pukevagen/rules', rules)).status, 401);
 
-  assert.equal((await admin('POST', '/api/admin/rules', rules)).status, 200);
+  assert.equal((await admin('POST', '/api/properties/pukevagen/rules', rules)).status, 200);
   assert.deepEqual((await env.client()('GET', '/api/config')).body.passHours, 3);
   assert.deepEqual((await res('GET', '/api/bookings')).body.rules, rules);
 
@@ -112,6 +113,6 @@ test('hyresvärden ändrar bokningsreglerna', async (t) => {
   assert.deepEqual([list[0].startHour, list[0].endHour], [6, 10]);
 
   // Återställ till standard.
-  assert.equal((await admin('DELETE', '/api/admin/rules')).body.rules.passHours, 4);
+  assert.equal((await admin('DELETE', '/api/properties/pukevagen/rules')).body.rules.passHours, 4);
   assert.equal((await env.client()('GET', '/api/config')).body.closeHour, 23);
 });

@@ -1,0 +1,24 @@
+# Startsidan. All kod finns i ../app/ (utanför webben); index.php skickar
+# vidare allt dit. Bokningssidor som hyresvärden lägger till hamnar i egna
+# undermappar här (med egen .htaccess).
+Options -Indexes
+DirectoryIndex index.php
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # Tvinga HTTPS (kan också slås på i Simplys kontrollpanel).
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+  # www.cjafastighetobygg.se → cjafastighetobygg.se
+  RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+  RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
+  # Allt utom riktiga filer och mappar går till index.php.
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^ index.php [L,QSA]
+</IfModule>
+
+<IfModule mod_headers.c>
+  Header set X-Robots-Tag "noindex, nofollow"
+</IfModule>

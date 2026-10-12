@@ -18,7 +18,7 @@ test('fem inloggningar skapas och lösenord krävs', async (t) => {
   const ok = await c('POST', '/api/login', { apartmentId: '1', password: env.passwords['1'] });
   assert.equal(ok.status, 200);
   assert.match(ok.headers.get('set-cookie'), /HttpOnly/i);
-  assert.deepEqual((await c('GET', '/api/me')).body, { apartmentId: '1', apartmentName: 'Lägenhet 1', isAdmin: false });
+  assert.deepEqual((await c('GET', '/api/me')).body, { apartmentId: '1', apartmentName: 'Lägenhet 1' });
   await c('POST', '/api/logout');
   assert.equal((await c('GET', '/api/me')).status, 401);
 });
@@ -89,20 +89,22 @@ test('lösenordsbyte loggar ut andra sessioner', async (t) => {
 test('återställning via aterstall.txt och set-password.php', async (t) => {
   const env = await setup();
   t.after(env.close);
-  const c = await env.login('2');
-  fs.writeFileSync(path.join(env.dir, 'data', 'aterstall.txt'), '2\n');
-  assert.equal((await c('GET', '/api/me')).status, 401); // utloggad
-  const log = fs.readFileSync(path.join(env.dir, 'data', 'losenord.txt'), 'utf8');
-  const newPw = [...log.matchAll(/^Lägenhet 2: (\S+)$/gm)].pop()[1];
-  assert.notEqual(newPw, env.passwords['2']);
-  assert.ok(!fs.existsSync(path.join(env.dir, 'data', 'aterstall.txt')));
-  assert.equal((await c('POST', '/api/login', { apartmentId: '2', password: newPw })).status, 200);
+  const admin = await env.admin();
+  assert.equal((await admin('GET', '/api/me')).status, 200);
+  fs.writeFileSync(path.join(env.dataDir, 'aterstall.txt'), 'admin\n');
+  assert.equal((await admin('GET', '/api/me')).status, 401); // utloggad
+  const newPw = env.readPasswords().admin;
+  assert.notEqual(newPw, env.passwords.admin);
+  assert.ok(!fs.existsSync(path.join(env.dataDir, 'aterstall.txt')));
+  assert.equal((await env.client('')('POST', '/api/login', { password: newPw })).status, 200);
 
-  const out = execFileSync('php', [path.join(__dirname, '..', 'scripts', 'set-password.php'), '4', 'hemligt123'], {
-    env: { ...process.env, TVATT_DATA_DIR: path.join(env.dir, 'data') },
+  const run = (...args) => execFileSync('php', [path.join(__dirname, '..', 'scripts', 'set-password.php'), ...args], {
+    env: { ...process.env, TVATT_DATA_DIR: env.dataDir },
   }).toString();
-  assert.match(out, /Lägenhet 4: hemligt123/);
+  assert.match(run('pukevagen', '4', 'hemligt123'), /Stora Pukevägen 12, Lägenhet 4: hemligt123/);
   assert.equal((await env.client()('POST', '/api/login', { apartmentId: '4', password: 'hemligt123' })).status, 200);
+  assert.match(run('admin', 'vardensnya'), /Hyresvärd: vardensnya/);
+  assert.equal((await env.client('')('POST', '/api/login', { password: 'vardensnya' })).status, 200);
 });
 
 test('för många felaktiga inloggningar spärras tillfälligt', async (t) => {
@@ -115,11 +117,20 @@ test('för många felaktiga inloggningar spärras tillfälligt', async (t) => {
   assert.equal((await c('POST', '/api/login', { apartmentId: '1', password: env.passwords['1'] })).status, 200);
 });
 
-test('skyddade filer går inte att hämta', async (t) => {
+test('inga sidor indexeras och inga interna filer kan hämtas', async (t) => {
   const env = await setup();
   t.after(env.close);
-  for (const p of ['/config.php', '/lib/app.php']) assert.equal((await fetch(env.base + p)).status, 403);
-  assert.equal((await fetch(env.base + '/')).status, 200);
+  for (const p of ['/', '/api/site', '/pukevagen/', '/pukevagen/api/config', '/pukevagen/app.js', '/logo.svg']) {
+    const res = await fetch(env.base + p);
+    assert.equal(res.status, 200, p);
+    assert.equal(res.headers.get('x-robots-tag'), 'noindex, nofollow', p);
+  }
+  for (const p of ['/robots.txt', '/pukevagen/robots.txt']) assert.equal(await (await fetch(env.base + p)).text(), 'User-agent: *\nDisallow: /\n');
+  for (const p of ['/', '/pukevagen/']) assert.match(await (await fetch(env.base + p)).text(), /<meta name="robots" content="noindex, nofollow">/);
+  for (const p of ['/config.php', '/main.php', '/lib/site.php', '/data/site.json', '/site.json', '/pukevagen/db.json', '/app.js', '/pukevagen/start.js']) {
+    assert.equal((await fetch(env.base + p)).status, 404, p);
+  }
+  assert.equal((await fetch(env.base + '/pukevagen', { redirect: 'manual' })).headers.get('location'), '/pukevagen/');
 });
 
 test('flytta ett eget pass', async (t) => {
@@ -151,7 +162,7 @@ test('flytta ett eget pass', async (t) => {
   assert.match((await move(a, p1.id, '2026-10-07', 8)).body.error, /passerat/);
   assert.equal((await move(b, p1.id, '2026-10-11', 6)).status, 403);
   assert.equal((await move(a, 'finnsinte', '2026-10-11', 6)).status, 404);
-  assert.equal((await move(await env.login('admin'), p1.id, '2026-10-11', 6)).status, 403);
+  assert.equal((await (await env.admin())('POST', `/pukevagen/api/bookings/${p1.id}`, { date: '2026-10-11', startHour: 6 })).status, 401);
 
   const list = (await a('GET', '/api/bookings?from=2026-10-05&to=2026-10-11')).body;
   assert.equal(list.mine.length, 2);

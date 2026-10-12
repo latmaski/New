@@ -1,11 +1,16 @@
-# Tvättstugan – Stora Pukevägen 12
+# CJA Fastighet & Bygg AB – startsida och tvättstugebokning
 
-Bokningsverktyg för tvättstugan. Det är gjort för att köras på ett vanligt webbhotell med PHP, till exempel Simply.com, och kräver ingen databas. Det som laddas upp är innehållet i `public/`.
+Webbplatsen för **cjafastighetobygg.se**. Den består av:
+
+- **Startsidan** (https://cjafastighetobygg.se): loggan, länkar till fastigheternas tvättstugebokning och inloggning för hyresvärden.
+- **Bokningssidor**, en per fastighet. Stora Pukevägen 12 ligger på https://pukevagen.cjafastighetobygg.se. På bokningssidorna loggar bara lägenheterna in.
+
+Allt körs på ett vanligt webbhotell med PHP (Simply.com) och kräver ingen databas. Inga sidor indexeras av sökmotorer: `robots.txt`, `<meta name="robots">` och rubriken `X-Robots-Tag: noindex, nofollow` finns på alla sidor.
 
 ## Regler
 
 - Ett pass är **4 timmar** och kan starta på valfri hel timme mellan **06:00 och 19:00**, så att det är klart senast **23:00**. Det gäller alla dagar.
-- Varje lägenhet (**5 st**) har en egen inloggning.
+- Varje lägenhet har en egen inloggning. Stora Pukevägen 12 har 5 lägenheter.
 - Man får ha **max 2 pass** bokade åt gången. Ett pass räknas tills det är slut, så när ett pass passerat kan man boka ett nytt.
 - **Kortare pass:** om ett helt pass inte får plats, för att någon annans pass börjar eller för att tvättstugan stänger 23:00, kan man boka den tid som finns kvar, minst 1 timme. Före någon annans pass gäller det bara luckor där ett helt pass inte får plats. Finns 4 timmar lediga bokar man ett helt pass i stället, så att schemat inte splittras. I slutet av dagen går det alltid att boka ett kortare pass fram till stängning. Sådana tider är gulmarkerade i kalendern med antal timmar, och man får en varning om hur långt passet blir innan man bekräftar. Ett kort pass räknas som ett av de två passen.
 - Pass får inte överlappa. Man kan boka upp till 28 dagar fram och avboka sina egna pass.
@@ -14,7 +19,7 @@ Bokningsverktyg för tvättstugan. Det är gjort för att köras på ett vanligt
 ### Anteckningar och anslagstavla
 
 - **Anteckning på ett pass:** man kan skriva en kort anteckning på sitt pass, högst 200 tecken, till exempel "Tvättar mattor". Det går när man bokar eller senare via raden under passet i "Mina pass". Anteckningen syns för alla i kalendern, och de andra klickar på passet för att läsa hela texten. Den följer med när passet flyttas.
-- **Anslagstavla:** under "Mina pass", och i hyresvärdens vy, finns en anslagstavla för grannarna. Det som hyresvärden behöver veta skrivs i WhatsApp-gruppen som vanligt. Där kan alla skriva inlägg på högst 500 tecken, som visas med namn, datum och tid. Man kan ta bort sina egna inlägg, och hyresvärden kan ta bort alla.
+- **Anslagstavla:** under "Mina pass", och i hyresvärdens vy på startsidan, finns en anslagstavla för grannarna. Det som hyresvärden behöver veta skrivs i WhatsApp-gruppen som vanligt. Där kan alla skriva inlägg på högst 500 tecken, som visas med namn, datum och tid. Man kan ta bort sina egna inlägg, och hyresvärden kan ta bort alla.
 
 ### Påminnelser
 
@@ -22,47 +27,63 @@ Under "Mina pass" finns knappen **Påminnelser i mobilens kalender**. Varje läg
 
 Länken är hemlig men kräver ingen inloggning, så att kalenderappen kan hämta den. Den kan bytas mot en ny i appen. När hyresvärden markerar att nya boende flyttar in byts den automatiskt.
 
-Reglerna ovan är standardvärden. Hyresvärden kan ändra dem i adminvyn, se nedan. Standardvärdena och lägenheternas namn ställs in i `public/config.php`.
+Reglerna ovan är standardvärden. Hyresvärden kan ändra dem per fastighet på startsidan, se nedan. Standardvärdena finns i `webbhotell/app/config.php`.
 
-## Hyresvärd (admin)
+## Hyresvärd (startsidan)
 
-Under inloggningen finns länken *"Hyresvärd? Logga in här"*. Den leder till adminvyn, där hyresvärden kan:
+Hyresvärden loggar in via *"Hyresvärd? Logga in"* längst ner på startsidan. För varje fastighet finns:
 
-- se **statistik** över hur många pass varje lägenhet har bokat, för denna månad, förra månaden, i år, de senaste 12 månaderna eller totalt, och hur många kommande pass varje lägenhet har.
-- ge en lägenhet ett **nytt lösenord** om någon har glömt sitt eller flyttar. Lösenordet visas en gång och lägenheten loggas ut på alla enheter. Vid flytt kan man även kryssa i att lägenhetens kommande pass ska avbokas.
-- ändra **bokningsreglerna**: öppettider, passets längd, kortaste pass (eller bara hela pass), max antal bokade pass per lägenhet och hur långt fram man får boka. Ändringarna gäller direkt för nya bokningar och flyttar. Redan bokade pass står kvar som de är och visas även om de hamnar utanför nya öppettider. Med *Återställ standard* gäller värdena i `config.php` igen.
-- byta sitt eget lösenord under "Byt lösenord".
+- **Statistik** över bokade pass och timmar per lägenhet: denna månad, förra månaden, i år, de senaste 12 månaderna eller totalt, samt kommande pass.
+- **Lägenheter och lösenord:** byt namn på en lägenhet, lägg till en lägenhet, eller ge en lägenhet ett nytt lösenord om någon har glömt sitt eller flyttar. Vid flytt kan man även avboka lägenhetens kommande pass, och då byts kalenderlänken.
+- **Bokningsregler:** öppettider, passets längd, kortaste pass (eller bara hela pass), max antal bokade pass och hur långt fram man får boka. Med *Återställ standard* gäller `config.php` igen. Redan bokade pass påverkas inte.
+- **Anslagstavla:** hyresvärden kan skriva inlägg och ta bort alla inlägg.
+- **Ändra namn och adress** för fastigheten.
 
-Hyresvärden kan inte boka pass. Avbokade pass räknas inte i statistiken. Timmarna räknas efter passens faktiska längd.
+**Lägg till fastighet:** hyresvärden anger namn, kortnamn (till exempel `storgatan`) och lägenheter. Då skapas mappen `public_html/storgatan/` automatiskt, och bokningen fungerar direkt på https://cjafastighetobygg.se/storgatan/. Lösenorden till lägenheterna visas en gång, och de kan skrivas ut eller kopieras. Vill man ha en egen underdomän skapar man den i Simplys kontrollpanel med mappen `public_html/storgatan`, och fyller sedan i adressen under *Ändra namn och adress*.
 
-## Lägga upp på Simply (tvatt.indoor.net)
+Hyresvärden kan inte boka pass.
 
-1. **Skapa underdomänen.** Gå till Simplys kontrollpanel för indoor.net och lägg till underdomänen `tvatt` med mappen `public_html/tvatt`. DNS behöver inte ändras, eftersom `*.indoor.net` redan pekar på webbhotellet.
-2. **Ladda upp filerna.** Ladda upp **innehållet** i `public/` till `public_html/tvatt/`. Glöm inte den dolda filen `.htaccess`. Välj ett av sätten:
-   - FTP: värd `ftp.simply.com`, användare `indoor.net`, lösenord = webbhotellets lösenord.
-   - SFTP: `sftp indoor.net@ssh.simply.com`. Kräver att din SSH-nyckel är uppladdad i kontrollpanelen.
-   - rsync: `rsync -avz public/ indoor.net@ssh.simply.com:public_html/tvatt/`
-3. **Slå på HTTPS** (SSL) för tvatt.indoor.net i kontrollpanelen, om det inte redan är på. `.htaccess` skickar alla besökare till https.
-4. **Hämta lösenorden.** Öppna https://tvatt.indoor.net en gång. Då skapas mappen `tvatt-data/` bredvid `public_html/`, alltså utanför webben. Hämta filen `tvatt-data/losenord.txt` via FTP/SFTP. Den innehåller ett lösenord per lägenhet och ett för hyresvärden. Dela ut dem och **radera sedan filen**. De boende kan byta lösenord själva i appen.
+## Filer på servern
+
+Zip-filen från `npm run paket` (`tvattstuga-webbhotell.zip`) packas upp i **roten** på FTP-kontot för cjafastighetobygg.se:
+
+```
+app/            all kod, stilar och loggan (utanför webben)
+public_html/    startsidan, cjafastighetobygg.se
+pukevagen/      bokningen, pukevagen.cjafastighetobygg.se
+data/           skapas automatiskt: bokningar, lösenordshashar och inställningar (utanför webben)
+```
+
+`public_html/` och `pukevagen/` innehåller bara en liten `index.php`, en `.htaccess` och en `robots.txt`. All kod finns i `app/`. En uppdatering är alltså bara att ladda upp `app/` igen. Webbläsarna hämtar de nya filerna direkt.
+
+## Flytta från tvatt.indoor.net till pukevagen.cjafastighetobygg.se
+
+Koden räknar ut adresserna själv, så inget i koden behöver ändras för den nya adressen. Det som behöver göras:
+
+1. **Underdomänen** `pukevagen.cjafastighetobygg.se` finns redan hos Simply och pekar på mappen `/pukevagen`. DNS behöver inte ändras.
+2. **Ladda upp:** packa upp zip-filen i roten på FTP-kontot för cjafastighetobygg.se (användare `cjafastighetoby.se`, värd `ftp.simply.com`). Ta bort Simplys standardfiler i `public_html/` om det finns några, till exempel en välkomstsida.
+3. **Flytta bokningarna:** hämta `tvatt/data/db.json` från indoor.net via FTP (finns den inte där, leta efter `tvatt-data/db.json`). Ladda upp den som `data/properties/pukevagen/db.json` på cjafastighetobygg.se. Skapa mapparna om de inte finns. Gör det **innan** bokningssidan öppnas första gången. Då gäller lägenheternas gamla lösenord, och alla bokningar, regler, anteckningar och inlägg följer med.
+4. **Slå på SSL** för både cjafastighetobygg.se och pukevagen.cjafastighetobygg.se i Simplys kontrollpanel.
+5. **Hämta hyresvärdens lösenord:** öppna https://cjafastighetobygg.se en gång. Hämta sedan `data/losenord.txt` via FTP och **radera filen**. Hyresvärdens gamla lösenord från bokningssidan gäller inte längre.
+6. **Gamla adressen:** byt ut allt i mappen `tvatt/` på indoor.net mot filen `flytt/tvatt.indoor.net/.htaccess`. Då skickas alla som går till tvatt.indoor.net vidare till den nya adressen.
+7. **Säg till de boende:** de loggar in en gång till på den nya adressen. Den som har lagt in tvättstugan i mobilens kalender lägger in den nya kalenderlänken under *Påminnelser i mobilens kalender*. Kalenderappar följer inte alltid omdirigeringen.
 
 Kräver PHP 7.3 eller senare.
 
 ### Glömt lösenord
 
-- **Enklast:** hyresvärden skapar ett nytt lösenord i adminvyn.
-- **Om hyresvärden glömt sitt eget lösenord, utan SSH:** lägg en fil `aterstall.txt` i `tvatt-data/` som innehåller ordet `admin`. Det fungerar också med ett lägenhetsnummer, till exempel `3`, eller med `alla`. Vid nästa sidvisning skapas ett nytt lösenord, som läggs till i `losenord.txt`. Samtidigt loggas kontot ut på alla enheter.
-- **Med SSH:** kör `TVATT_PUBLIC_DIR=~/public_html/tvatt php set-password.php admin [nytt lösenord]`, där `set-password.php` finns i `scripts/`.
+- **Lägenheter:** hyresvärden skapar ett nytt lösenord på startsidan.
+- **Hyresvärden, utan SSH:** lägg en tom fil `aterstall.txt` i `data/`. Vid nästa besök på startsidan skapas ett nytt lösenord, som skrivs till `data/losenord.txt`.
+- **Med SSH:** `php scripts/set-password.php admin [lösenord]` eller `php scripts/set-password.php pukevagen 3 [lösenord]`. Sätt `TVATT_APP_DIR` om `app/` ligger någon annanstans.
 
 ### Data och säkerhetskopiering
 
-Bokningar, hyresvärdens regler, lösenordshashar och den hemliga nyckeln för sessionerna ligger i `tvatt-data/db.json`. Säkerhetskopiera den filen. Om mappen bredvid `public_html` inte går att skriva till används `public_html/tvatt/data/` i stället. Den skyddas med `.htaccess`.
-
-Uppdatera appen genom att ladda upp innehållet i ett nytt paket från `npm run paket` (`tvattstuga-webbhotell.zip`). Data ligger i en egen mapp och påverkas inte. Paketet får ett nytt versionsnummer på `app.js` och `style.css`, och `.htaccess` ber webbläsarna att alltid kontrollera om filerna har ändrats. Därför slår en uppdatering igenom direkt. Laddar du upp `public/` direkt i stället, gör en hård omladdning av sidan efteråt (Ctrl/Cmd+Shift+R).
+Säkerhetskopiera mappen `data/`. Där finns `site.json`, med fastigheterna och hyresvärdens inloggning, och `properties/<kortnamn>/db.json` för varje fastighet. Varje fastighet har egna lägenheter, bokningar, regler, kalenderlänkar och en egen anslagstavla.
 
 ## Utveckling
 
 ```sh
-npm run dev    # http://localhost:8000 (PHP:s inbyggda server)
+npm run dev    # http://localhost:8000 – startsidan på /, fastigheter på /<kortnamn>/
 npm test       # tester i Node som körs mot PHP-servern (kräver php och node 18+)
-npm run paket  # zip-fil med allt som ska upp på webbhotellet
+npm run paket  # tvattstuga-webbhotell.zip med allt som ska upp på webbhotellet
 ```

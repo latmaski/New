@@ -3,22 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tvättstugan · Stora Pukevägen 12</title>
-<link rel="icon" href="icon.svg" type="image/svg+xml">
+<meta name="robots" content="noindex, nofollow">
+<title>{{TITLE}}</title>
+<link rel="icon" href="icon.svg?v=dev" type="image/svg+xml">
 <link rel="stylesheet" href="style.css?v=dev">
 </head>
 <body>
 
 <main id="login" class="login" hidden>
   <div class="login-card">
+    <img class="login-logo" src="logo.svg?v=dev" alt="CJA Fastighet &amp; Bygg AB" width="200" height="56">
     <p class="eyebrow">Tvättstugan</p>
-    <h1 class="building-name">Stora Pukevägen 12</h1>
+    <h1 class="building-name"></h1>
     <form id="login-form" novalidate>
-      <fieldset id="apt-fieldset">
+      <fieldset>
         <legend>Välj din lägenhet</legend>
         <div id="apt-picker" class="apt-picker"></div>
       </fieldset>
-      <p id="admin-login-label" class="admin-login-label" hidden>Inloggning för hyresvärden</p>
       <label class="field">
         <span>Lösenord</span>
         <input id="login-password" type="password" autocomplete="current-password" required>
@@ -26,15 +27,17 @@
       <p id="login-error" class="form-error" role="alert"></p>
       <button class="btn primary wide" type="submit">Logga in</button>
     </form>
-    <button id="toggle-admin" class="link-btn" type="button">Hyresvärd? Logga in här</button>
   </div>
 </main>
 
 <div id="app" hidden>
   <header class="top">
     <div class="brand">
-      <span class="eyebrow">Tvättstugan</span>
-      <strong class="building-name">Stora Pukevägen 12</strong>
+      <img class="brand-mark" src="icon.svg?v=dev" alt="" width="36" height="36">
+      <div>
+        <span class="eyebrow">Tvättstugan</span>
+        <strong class="building-name"></strong>
+      </div>
     </div>
     <div class="who">
       <span id="me-name" class="me-pill"></span>
@@ -43,59 +46,6 @@
     </div>
   </header>
 
-  <main id="admin-view" class="admin-layout" hidden>
-    <section class="panel" aria-labelledby="stats-title">
-      <div class="panel-head">
-        <div>
-          <h2 id="stats-title">Bokade pass per lägenhet</h2>
-          <p id="stats-sub" class="muted small"></p>
-        </div>
-        <div id="period-chips" class="chips" role="radiogroup" aria-label="Period"></div>
-      </div>
-      <div id="stats-bars" class="bars"></div>
-      <div class="table-wrap">
-        <table class="stats-table">
-          <thead>
-            <tr><th scope="col">Lägenhet</th><th scope="col">Denna månad</th><th scope="col">Förra månaden</th><th scope="col">I år</th><th scope="col">Totalt</th><th scope="col">Kommande</th></tr>
-          </thead>
-          <tbody id="stats-body"></tbody>
-          <tfoot id="stats-foot"></tfoot>
-        </table>
-      </div>
-    </section>
-
-    <div class="admin-side">
-    <section class="panel" aria-labelledby="rules-title">
-      <h2 id="rules-title">Bokningsregler</h2>
-      <p class="muted small">Gäller direkt för alla nya bokningar och flyttar. Redan bokade pass påverkas inte.</p>
-      <form id="rules-form" class="rules-form" novalidate>
-        <div class="field-row">
-          <label class="field"><span>Öppnar</span><select id="r-open"></select></label>
-          <label class="field"><span>Stänger</span><select id="r-close"></select></label>
-        </div>
-        <label class="field"><span>Passets längd</span><select id="r-pass"></select></label>
-        <label class="field"><span>Kortaste pass</span><select id="r-min"></select>
-          <small>När ett helt pass inte får plats före nästa pass eller stängningen.</small></label>
-        <div class="field-row">
-          <label class="field"><span>Max bokade pass</span><input id="r-max" type="number" min="1" max="20" inputmode="numeric"></label>
-          <label class="field"><span>Boka dagar fram</span><input id="r-horizon" type="number" min="1" max="365" inputmode="numeric"></label>
-        </div>
-        <p id="rules-summary" class="rules-summary"></p>
-        <p id="rules-error" class="form-error" role="alert"></p>
-        <div class="form-actions">
-          <button id="rules-reset" class="btn ghost small" type="button">Återställ standard</button>
-          <button class="btn primary" type="submit">Spara regler</button>
-        </div>
-      </form>
-    </section>
-
-    <section class="panel" aria-labelledby="pw-admin-title">
-      <h2 id="pw-admin-title">Lösenord</h2>
-      <p class="muted small">Ge en lägenhet ett nytt lösenord om någon har glömt sitt eller när nya boende flyttar in. Lägenheten loggas då ut på alla enheter.</p>
-      <ul id="pw-admin-list" class="pw-admin-list"></ul>
-    </section>
-    </div>
-  </main>
 
   <main id="resident-view" class="layout">
     <aside id="resident-side" class="side">
@@ -107,6 +57,17 @@
       <ul id="mine-list" class="mine-list"></ul>
       <button id="btn-remind" class="btn ghost remind-btn" type="button">🔔 Påminnelser i mobilens kalender</button>
       <p class="rules" id="rules-text"></p>
+    </section>
+    <section id="board" class="panel board" aria-labelledby="board-title">
+      <h2 id="board-title">Anslagstavla</h2>
+      <p class="muted small board-hint">Här kan du skriva något till grannarna. Behöver hyresvärden veta, så skriv i WhatsApp-gruppen som vanligt.</p>
+      <form class="board-form">
+        <label class="sr-only" for="board-text">Skriv ett inlägg</label>
+        <textarea id="board-text" class="board-text" rows="2" maxlength="500" placeholder="Skriv något till grannarna …"></textarea>
+        <div class="board-form-row"><span class="board-count muted small"></span><button class="btn primary small" type="submit">Publicera</button></div>
+      </form>
+      <ul class="board-list"></ul>
+      <button class="board-more link-btn" type="button" hidden>Visa äldre inlägg</button>
     </section>
     </aside>
 
@@ -181,39 +142,8 @@
   </form>
 </dialog>
 
-<dialog id="reset-dialog" class="dialog">
-  <form method="dialog">
-    <h3 id="reset-title"></h3>
-    <p class="muted">Ett nytt lösenord skapas och det gamla slutar gälla direkt.</p>
-    <label class="check"><input id="reset-cancel" type="checkbox"> Nya boende flyttar in – avboka även lägenhetens kommande pass</label>
-    <div class="dialog-actions">
-      <button class="btn ghost" value="cancel">Avbryt</button>
-      <button class="btn primary" value="ok">Skapa nytt lösenord</button>
-    </div>
-  </form>
-</dialog>
 
-<dialog id="reset-result" class="dialog">
-  <form method="dialog">
-    <h3 id="reset-result-title"></h3>
-    <p class="muted">Ge lösenordet till de boende. Det visas bara nu. De kan byta det själva efter inloggning.</p>
-    <div class="new-password"><code id="reset-password"></code><button id="copy-password" class="btn ghost small" type="button">Kopiera</button></div>
-    <p id="reset-cancelled" class="muted small"></p>
-    <div class="dialog-actions"><button class="btn primary" value="ok">Klar</button></div>
-  </form>
-</dialog>
 
-<section id="board" class="panel board" aria-labelledby="board-title" hidden>
-  <h2 id="board-title">Anslagstavla</h2>
-  <p class="muted small board-hint">Här kan du skriva något till grannarna. Behöver hyresvärden veta, så skriv i WhatsApp-gruppen som vanligt.</p>
-  <form id="board-form" class="board-form">
-    <label class="sr-only" for="board-text">Skriv ett inlägg</label>
-    <textarea id="board-text" rows="2" maxlength="500" placeholder="Skriv något till grannarna …"></textarea>
-    <div class="board-form-row"><span id="board-count" class="muted small"></span><button class="btn primary small" type="submit">Publicera</button></div>
-  </form>
-  <ul id="board-list" class="board-list"></ul>
-  <button id="board-more" class="link-btn" type="button" hidden>Visa äldre inlägg</button>
-</section>
 
 <dialog id="note-dialog" class="dialog">
   <form id="note-form">
@@ -240,6 +170,7 @@
 
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
+<script src="common.js?v=dev"></script>
 <script src="app.js?v=dev"></script>
 </body>
 </html>

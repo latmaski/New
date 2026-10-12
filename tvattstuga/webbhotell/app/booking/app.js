@@ -1,14 +1,12 @@
 'use strict';
 
-const $ = (id) => document.getElementById(id);
+// Bokningssidan för de boende. Hjälpfunktioner ($, api, toast, datum,
+// anslagstavla …) finns i common.js.
 const narrow = window.matchMedia('(max-width: 860px)');
 
 const state = {
   config: null,
   me: null,
-  adminLogin: false,
-  stats: null,
-  period: 'month',
   weekStart: null, // måndag, 'YYYY-MM-DD'
   selectedDay: null, // används i mobilvyn
   now: null,
@@ -17,46 +15,9 @@ const state = {
   moving: null, // eget pass som håller på att flyttas (via "Ändra")
 };
 
-// ---------- Datum (alltid som 'YYYY-MM-DD'-strängar i lokal tid) ----------
-const toDate = (s) => new Date(`${s}T00:00:00Z`);
-const addDays = (s, n) => { const d = toDate(s); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
-const mondayOf = (s) => addDays(s, -((toDate(s).getUTCDay() + 6) % 7));
-const fmt = (s, opts) => toDate(s).toLocaleDateString('sv-SE', { timeZone: 'UTC', ...opts });
-const pad = (h) => String(h).padStart(2, '0');
-const hourIndex = (date, hour) => toDate(date).getTime() / 3600000 + hour;
-
-function isoWeek(s) {
-  const d = toDate(s);
-  d.setUTCDate(d.getUTCDate() + 3 - ((d.getUTCDay() + 6) % 7));
-  const firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
-  return 1 + Math.round(((d - firstThursday) / 86400000 - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7);
-}
-
 function describe(b) {
   const day = b.date === state.now.date ? 'idag' : b.date === addDays(state.now.date, 1) ? 'imorgon' : fmt(b.date, { weekday: 'long', day: 'numeric', month: 'short' });
   return { day, time: `${pad(b.startHour)}:00–${pad(b.endHour)}:00` };
-}
-
-// ---------- API ----------
-async function api(path, options = {}) {
-  const res = await fetch(path, {
-    ...options,
-    headers: options.body ? { 'Content-Type': 'application/json' } : {},
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
-  const data = await res.json().catch(() => ({}));
-  if (res.status === 401 && path !== 'api/login') { showLogin(); throw new Error(data.error || 'Du är inte inloggad.'); }
-  if (!res.ok) throw new Error(data.error || 'Något gick fel.');
-  return data;
-}
-
-let toastTimer;
-function toast(message, isError = false) {
-  const el = $('toast');
-  el.textContent = message;
-  el.className = `toast show${isError ? ' error' : ''}`;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.className = 'toast'; }, 3500);
 }
 
 // ---------- Inloggning ----------
@@ -75,31 +36,17 @@ function renderAptPicker() {
   }
 }
 
-function localStorageGet(key) { try { return localStorage.getItem(key); } catch { return null; } }
-function localStorageSet(key, value) { try { localStorage.setItem(key, value); } catch { /* privat läge */ } }
-
-function setAdminLogin(on) {
-  state.adminLogin = on;
-  $('apt-fieldset').hidden = on;
-  $('admin-login-label').hidden = !on;
-  $('toggle-admin').textContent = on ? '← Tillbaka till lägenheterna' : 'Hyresvärd? Logga in här';
-  $('login-error').textContent = '';
-}
-
 function showLogin() {
   state.me = null;
   $('app').hidden = true;
   $('login').hidden = false;
   renderAptPicker();
-  setAdminLogin(false);
   $('login-password').value = '';
 }
 
-$('toggle-admin').addEventListener('click', () => { setAdminLogin(!state.adminLogin); $('login-password').focus(); });
-
 $('login-form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const apartmentId = state.adminLogin ? 'admin' : new FormData(e.target).get('apartment');
+  const apartmentId = new FormData(e.target).get('apartment');
   const password = $('login-password').value;
   $('login-error').textContent = '';
   if (!apartmentId) { $('login-error').textContent = 'Välj din lägenhet.'; return; }
@@ -459,90 +406,6 @@ $('note-form').addEventListener('submit', async (e) => {
   }
 });
 
-// ---------- Anslagstavla ----------
-const BOARD_SHOWN = 8;
-let boardExpanded = false;
-
-function postTime(iso) {
-  const d = new Date(iso);
-  const tz = { timeZone: 'Europe/Stockholm' };
-  const day = d.toLocaleDateString('sv-SE', tz);
-  const time = d.toLocaleTimeString('sv-SE', { ...tz, hour: '2-digit', minute: '2-digit' });
-  const today = new Date().toLocaleDateString('sv-SE', tz);
-  const yesterday = new Date(Date.now() - 86400000).toLocaleDateString('sv-SE', tz);
-  if (day === today) return `idag ${time}`;
-  if (day === yesterday) return `igår ${time}`;
-  const sameYear = day.slice(0, 4) === today.slice(0, 4);
-  return `${d.toLocaleDateString('sv-SE', { ...tz, weekday: 'short', day: 'numeric', month: 'short', year: sameYear ? undefined : 'numeric' })} ${time}`;
-}
-
-async function loadBoard() {
-  const data = await api('api/board');
-  renderBoard(data.posts);
-}
-
-function renderBoard(posts) {
-  const list = $('board-list');
-  list.innerHTML = '';
-  if (!posts.length) {
-    const li = document.createElement('li');
-    li.className = 'empty';
-    li.textContent = 'Inga inlägg ännu.';
-    list.append(li);
-  }
-  const shown = boardExpanded ? posts : posts.slice(0, BOARD_SHOWN);
-  for (const p of shown) {
-    const li = document.createElement('li');
-    li.innerHTML = '<div class="meta"><span><b></b> · <time></time></span></div><p class="text"></p>';
-    li.querySelector('b').textContent = p.mine ? `${p.authorName} (du)` : p.authorName;
-    const time = li.querySelector('time');
-    time.dateTime = p.createdAt;
-    time.textContent = postTime(p.createdAt);
-    time.title = new Date(p.createdAt).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm' });
-    li.querySelector('.text').textContent = p.text;
-    if (p.canDelete) {
-      const del = document.createElement('button');
-      del.type = 'button';
-      del.className = 'delete';
-      del.textContent = 'Ta bort';
-      del.addEventListener('click', () => deletePost(p));
-      li.querySelector('.meta').append(del);
-    }
-    list.append(li);
-  }
-  $('board-more').hidden = boardExpanded || posts.length <= BOARD_SHOWN;
-}
-
-async function deletePost(p) {
-  if (!window.confirm('Ta bort inlägget?')) return;
-  try {
-    await api(`api/board/${p.id}`, { method: 'DELETE' });
-    toast('Inlägget är borttaget.');
-  } catch (err) {
-    toast(err.message, true);
-  }
-  loadBoard().catch(() => {});
-}
-
-const updateBoardCount = () => {
-  const n = $('board-text').value.length;
-  $('board-count').textContent = n > 400 ? `${n}/500` : '';
-};
-$('board-text').addEventListener('input', updateBoardCount);
-$('board-more').addEventListener('click', () => { boardExpanded = true; loadBoard().catch(() => {}); });
-$('board-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  try {
-    const data = await api('api/board', { method: 'POST', body: { text: $('board-text').value } });
-    $('board-text').value = '';
-    updateBoardCount();
-    renderBoard(data.posts);
-    toast('Inlägget är publicerat.');
-  } catch (err) {
-    toast(err.message, true);
-  }
-});
-
 // ---------- Påminnelser / kalender ----------
 const isAndroid = /Android/i.test(navigator.userAgent);
 const reminderLabel = (m) => (m >= 1440 ? 'Dagen före' : m >= 60 ? `${m / 60} ${m === 60 ? 'timme' : 'timmar'} före` : `${m} minuter före`);
@@ -762,220 +625,13 @@ $('next-week').addEventListener('click', () => goToWeek(addDays(state.weekStart,
 $('today-btn').addEventListener('click', () => { state.selectedDay = state.now.date; goToWeek(mondayOf(state.now.date)); });
 narrow.addEventListener('change', () => state.now && renderGrid());
 
-// ---------- Hyresvärd ----------
-const PERIODS = [
-  ['month', 'Denna månad'], ['last', 'Förra månaden'], ['year', 'I år'], ['12m', '12 mån'], ['all', 'Totalt'],
-];
-const monthKey = (date, back = 0) => {
-  const [y, m] = date.split('-').map(Number);
-  const d = new Date(Date.UTC(y, m - 1 - back, 1));
-  return d.toISOString().slice(0, 7);
-};
-const monthName = (key) => fmt(`${key}-01`, { month: 'long', year: 'numeric' });
-
-function periodCount(apt, period, field = 'months') {
-  const today = state.stats.now.date;
-  const months = apt[field];
-  const sum = (keys) => keys.reduce((n, k) => n + (months[k] || 0), 0);
-  if (period === 'month') return sum([monthKey(today)]);
-  if (period === 'last') return sum([monthKey(today, 1)]);
-  if (period === 'year') return sum(Object.keys(months).filter((k) => k.startsWith(today.slice(0, 4))));
-  if (period === '12m') return sum(Array.from({ length: 12 }, (_, i) => monthKey(today, i)));
-  return field === 'monthHours' ? apt.totalHours : apt.total;
-}
-
-function periodLabel(period) {
-  const today = state.stats.now.date;
-  if (period === 'month') return monthName(monthKey(today));
-  if (period === 'last') return monthName(monthKey(today, 1));
-  if (period === 'year') return `år ${today.slice(0, 4)}`;
-  if (period === '12m') return `${monthName(monthKey(today, 11))} – ${monthName(monthKey(today))}`;
-  return 'sedan start';
-}
-
-async function loadStats() {
-  state.stats = await api('api/admin/stats');
-  renderStats();
-}
-
-function renderStats() {
-  const { apartments } = state.stats;
-  const chips = $('period-chips');
-  chips.innerHTML = '';
-  for (const [key, label] of PERIODS) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.setAttribute('role', 'radio');
-    b.setAttribute('aria-checked', String(key === state.period));
-    b.textContent = label;
-    b.addEventListener('click', () => { state.period = key; renderStats(); });
-    chips.append(b);
-  }
-
-  const counts = apartments.map((a) => periodCount(a, state.period));
-  const hoursPer = apartments.map((a) => periodCount(a, state.period, 'monthHours'));
-  const total = counts.reduce((a, b) => a + b, 0);
-  const totalHours = hoursPer.reduce((a, b) => a + b, 0);
-  const max = Math.max(1, ...counts);
-  $('stats-sub').textContent = `${total} pass (${totalHours} timmar) totalt, ${periodLabel(state.period)}.`;
-
-  const bars = $('stats-bars');
-  bars.innerHTML = '';
-  apartments.forEach((apt, i) => {
-    const n = counts[i];
-    const row = document.createElement('div');
-    row.className = 'bar-row';
-    row.innerHTML = '<span class="label"></span><div class="bar-track"><div class="bar"></div></div><span class="value"></span><span class="bar-tip"></span>';
-    row.querySelector('.label').textContent = apt.name;
-    row.querySelector('.bar').style.width = `${(n / max) * 100}%`;
-    row.querySelector('.value').innerHTML = `${n} <span>pass</span>`;
-    const share = total ? Math.round((n / total) * 100) : 0;
-    row.querySelector('.bar-tip').textContent = `${apt.name}: ${n} pass · ${hoursPer[i]} h · ${share} % av alla`;
-    row.setAttribute('aria-label', row.querySelector('.bar-tip').textContent);
-    bars.append(row);
-  });
-
-  const body = $('stats-body');
-  body.innerHTML = '';
-  const cols = ['month', 'last', 'year', 'all'];
-  const totals = [0, 0, 0, 0, 0];
-  for (const apt of apartments) {
-    const values = [...cols.map((c) => periodCount(apt, c)), apt.upcoming];
-    values.forEach((v, i) => { totals[i] += v; });
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td><span class="full"></span><span class="short"></span></td>${values.map((v) => `<td>${v}</td>`).join('')}`;
-    tr.querySelector('.full').textContent = apt.name;
-    tr.querySelector('.short').textContent = apt.name.replace(/^Lägenhet\s*/i, 'Lgh ');
-    body.append(tr);
-  }
-  $('stats-foot').innerHTML = `<tr><td>Summa</td>${totals.map((v) => `<td>${v}</td>`).join('')}</tr>`;
-
-  const list = $('pw-admin-list');
-  list.innerHTML = '';
-  for (const apt of apartments) {
-    const li = document.createElement('li');
-    li.innerHTML = '<span></span><button class="btn ghost small" type="button">Nytt lösenord</button>';
-    li.firstChild.textContent = apt.name;
-    li.querySelector('button').addEventListener('click', () => resetPassword(apt));
-    list.append(li);
-  }
-}
-
-function resetPassword(apt) {
-  const dialog = $('reset-dialog');
-  $('reset-title').textContent = `Nytt lösenord för ${apt.name}?`;
-  $('reset-cancel').checked = false;
-  dialog.returnValue = '';
-  dialog.showModal();
-  dialog.addEventListener('close', async () => {
-    if (dialog.returnValue !== 'ok') return;
-    try {
-      const res = await api('api/admin/reset-password', { method: 'POST', body: { apartmentId: apt.id, cancelUpcoming: $('reset-cancel').checked } });
-      $('reset-result-title').textContent = `Nytt lösenord för ${res.apartmentName}`;
-      $('reset-password').textContent = res.password;
-      $('reset-cancelled').textContent = res.cancelled ? `${res.cancelled} kommande pass avbokades.` : '';
-      $('reset-result').showModal();
-      loadStats().catch(() => {});
-    } catch (err) {
-      toast(err.message, true);
-    }
-  }, { once: true });
-}
-
-$('copy-password').addEventListener('click', async () => {
-  try {
-    await navigator.clipboard.writeText($('reset-password').textContent);
-    toast('Lösenordet är kopierat.');
-  } catch {
-    toast('Kunde inte kopiera – skriv av lösenordet.', true);
-  }
-});
-
-// ---------- Bokningsregler (hyresvärd) ----------
-const RULE_FIELDS = {
-  openHour: 'r-open', closeHour: 'r-close', passHours: 'r-pass', minPassHours: 'r-min',
-  maxActiveBookings: 'r-max', bookingHorizonDays: 'r-horizon',
-};
-
-function fillSelect(id, values, label, selected) {
-  const sel = $(id);
-  sel.innerHTML = '';
-  for (const v of values) {
-    const o = document.createElement('option');
-    o.value = String(v);
-    o.textContent = label(v);
-    sel.append(o);
-  }
-  if (selected !== undefined && values.includes(selected)) sel.value = String(selected);
-}
-
-const range = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
-
-function readRulesForm() {
-  const r = {};
-  for (const [key, id] of Object.entries(RULE_FIELDS)) r[key] = Number.parseInt($(id).value, 10);
-  return r;
-}
-
-// Fyller formuläret och håller beroende val (längd ≤ öppettid, kortaste ≤ längd) giltiga.
-function renderRulesForm(r) {
-  fillSelect('r-open', range(0, 23), (h) => `${pad(h)}:00`, r.openHour);
-  fillSelect('r-close', range(r.openHour + 1, 24), (h) => `${pad(h)}:00`, Math.max(r.closeHour, r.openHour + 1));
-  const span = Number($('r-close').value) - r.openHour;
-  fillSelect('r-pass', range(1, Math.min(12, span)), hoursText, Math.min(r.passHours, span));
-  const pass = Number($('r-pass').value);
-  fillSelect('r-min', range(1, pass), (h) => (h === pass ? `Bara hela pass (${hoursText(h)})` : hoursText(h)), Math.min(r.minPassHours, pass));
-  $('r-max').value = String(r.maxActiveBookings);
-  $('r-horizon').value = String(r.bookingHorizonDays);
-  updateRulesSummary();
-}
-
-function updateRulesSummary() {
-  const r = readRulesForm();
-  const valid = Object.values(r).every(Number.isInteger) && r.maxActiveBookings >= 1 && r.bookingHorizonDays >= 1;
-  $('rules-summary').textContent = valid ? rulesSummary(r) : 'Fyll i alla fält.';
-}
-
-async function loadRules() {
-  const data = await api('api/admin/rules');
-  state.ruleDefaults = data.defaults;
-  renderRulesForm(data.rules);
-}
-
-for (const id of ['r-open', 'r-close', 'r-pass']) {
-  $(id).addEventListener('change', () => renderRulesForm(readRulesForm()));
-}
-for (const id of ['r-min', 'r-max', 'r-horizon']) {
-  $(id).addEventListener('input', updateRulesSummary);
-}
-
-$('rules-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  $('rules-error').textContent = '';
-  try {
-    const data = await api('api/admin/rules', { method: 'POST', body: readRulesForm() });
-    renderRulesForm(data.rules);
-    toast('Reglerna är sparade och gäller nu.');
-  } catch (err) {
-    $('rules-error').textContent = err.message;
-  }
-});
-
-$('rules-reset').addEventListener('click', async () => {
-  if (!window.confirm(`Återställa standardreglerna?\n\n${rulesSummary(state.ruleDefaults)}`)) return;
-  try {
-    const data = await api('api/admin/rules', { method: 'DELETE' });
-    renderRulesForm(data.rules);
-    toast('Standardreglerna gäller igen.');
-  } catch (err) {
-    toast(err.message, true);
-  }
-});
+// ---------- Anslagstavla ----------
+const board = createBoard($('board'), 'api/');
 
 function refresh() {
   if (!state.me || document.hidden) return;
-  (state.me.isAdmin ? loadStats() : load()).catch(() => {});
-  loadBoard().catch(() => {});
+  load().catch(() => {});
+  board.load().catch(() => {});
 }
 
 // ---------- Start ----------
@@ -983,19 +639,7 @@ async function startApp() {
   const me = await api('api/me');
   state.me = me;
   $('me-name').textContent = me.apartmentName;
-  $('admin-view').hidden = !me.isAdmin;
-  $('resident-view').hidden = me.isAdmin;
-  // Anslagstavlan delas av båda vyerna; flytta den dit den hör hemma.
-  (me.isAdmin ? document.querySelector('.admin-side') : $('resident-side')).append($('board'));
-  $('board').hidden = false;
-  boardExpanded = false;
-  loadBoard().catch(() => {});
-  if (me.isAdmin) {
-    await Promise.all([loadStats(), loadRules()]);
-    $('login').hidden = true;
-    $('app').hidden = false;
-    return;
-  }
+  board.load().catch(() => {});
   const first = await api('api/bookings');
   state.now = first.now;
   applyRules(first.rules);
@@ -1009,18 +653,6 @@ async function startApp() {
   $('app').hidden = false;
 }
 
-const hoursText = (n) => `${n} ${n === 1 ? 'timme' : 'timmar'}`;
-
-function rulesSummary(r) {
-  const lastFull = r.closeHour - r.passHours;
-  const short = r.minPassHours < r.passHours
-    ? `Får ett helt pass inte plats kan man boka ett kortare, ned till ${hoursText(r.minPassHours)}. `
-    : '';
-  return `Pass om ${hoursText(r.passHours)} mellan ${pad(r.openHour)}:00 och ${pad(r.closeHour)}:00, alla dagar `
-    + `(hela pass startar senast ${pad(lastFull)}:00). ${short}`
-    + `Max ${r.maxActiveBookings} bokade pass åt gången, upp till ${r.bookingHorizonDays} dagar fram.`;
-}
-
 // Reglerna kan ändras av hyresvärden; servern skickar med dem vid varje hämtning.
 function applyRules(rules) {
   if (rules) Object.assign(state.config, rules);
@@ -1029,7 +661,9 @@ function applyRules(rules) {
 }
 
 async function init() {
+  window.onUnauthorized = showLogin;
   state.config = await api('api/config');
+  for (const el of document.querySelectorAll('.building-name')) el.textContent = state.config.name;
   applyRules();
   try {
     await startApp();

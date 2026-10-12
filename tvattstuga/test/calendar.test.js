@@ -18,7 +18,7 @@ test('kalenderprenumeration med påminnelser', async (t) => {
   const rem = await a('GET', '/api/reminders');
   assert.equal(rem.status, 200);
   assert.equal(rem.body.reminderMinutes, 60);
-  assert.match(rem.body.feedUrl, /^http:\/\/127\.0\.0\.1:\d+\/api\/calendar\/[a-f0-9]{32}\.ics$/);
+  assert.match(rem.body.feedUrl, /^http:\/\/127\.0\.0\.1:\d+\/pukevagen\/api\/calendar\/[a-f0-9]{32}\.ics$/);
 
   // Prenumerationen kräver ingen inloggning, bara den hemliga länken.
   const res = await fetch(rem.body.feedUrl);
@@ -28,7 +28,7 @@ test('kalenderprenumeration med påminnelser', async (t) => {
   assert.ok(raw.split('\r\n').every((l) => Buffer.byteLength(l) <= 75), 'rader högst 75 byte');
   const ics = unfold(raw);
   assert.equal((ics.match(/BEGIN:VEVENT/g) || []).length, 2); // bara egna pass
-  assert.match(ics, /X-WR-CALNAME:Tvättstugan – Lägenhet 1/);
+  assert.match(ics, /X-WR-CALNAME:Tvättstugan – Stora Pukevägen 12 – Lägenhet 1/);
   assert.match(ics, /DTSTART:20261008T040000Z/); // 06:00 svensk sommartid
   assert.match(ics, /DTEND:20261008T080000Z/);
   assert.match(ics, new RegExp(`UID:${p1.id}@`));
@@ -50,7 +50,7 @@ test('kalenderprenumeration med påminnelser', async (t) => {
   assert.equal(fresh.body.reminderMinutes, 1440);
   assert.equal((await fetch(rem.body.feedUrl)).status, 404);
   assert.equal((await fetch(fresh.body.feedUrl)).status, 200);
-  assert.equal((await fetch(`${env.base}/api/calendar/${'0'.repeat(32)}.ics`)).status, 404);
+  assert.equal((await fetch(`${env.base}/pukevagen/api/calendar/${'0'.repeat(32)}.ics`)).status, 404);
 });
 
 test('ett enskilt pass som kalenderfil', async (t) => {
@@ -79,9 +79,9 @@ test('flytt till nya boende ger ny kalenderlänk', async (t) => {
   const a = await env.login('3');
   const old = (await a('GET', '/api/reminders')).body.feedUrl;
   const admin = await env.login('admin');
-  await admin('POST', '/api/admin/reset-password', { apartmentId: '3' });
+  await admin('POST', '/api/properties/pukevagen/reset-password', { apartmentId: '3' });
   assert.equal((await fetch(old)).status, 200); // glömt lösenord: länken behålls
-  await admin('POST', '/api/admin/reset-password', { apartmentId: '3', cancelUpcoming: true });
+  await admin('POST', '/api/properties/pukevagen/reset-password', { apartmentId: '3', cancelUpcoming: true });
   assert.equal((await fetch(old)).status, 404); // nya boende: ny länk
-  assert.equal((await admin('GET', '/api/reminders')).status, 403);
+  assert.equal((await admin('GET', '/pukevagen/api/reminders')).status, 401);
 });
