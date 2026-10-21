@@ -70,6 +70,27 @@ legend { font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 
 .apt-picker input:checked + span { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent); }
 .apt-picker input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+/* Pinkod: knappsats på mobilen, tangentbordet på datorn */
+.pin-label { margin: 18px 0 0; text-align: center; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.pin-error { text-align: center; }
+.pinpad { display: flex; flex-direction: column; align-items: center; gap: 14px; margin-top: 10px; }
+.pin-dots { display: flex; gap: 18px; padding: 6px 0; }
+.pin-dots i { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--ink-3); transition: background .1s, border-color .1s; }
+.pin-dots i.on { background: var(--accent); border-color: var(--accent); }
+.pinpad.shake .pin-dots { animation: pin-shake .35s; }
+@keyframes pin-shake { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
+.keypad { display: none; grid-template-columns: repeat(3, 62px); gap: 10px 20px; }
+.keypad button { width: 62px; height: 62px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface-2); font-size: 26px; font-weight: 500; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.keypad button:active { background: var(--accent-soft); border-color: var(--accent); }
+.keypad .key-back { border-color: transparent; background: none; font-size: 22px; color: var(--ink-2); }
+.pin-hint { margin: 0; font-size: 13px; color: var(--ink-3); }
+/* Pekskärm: visa knappsatsen. Utan pekskärm skriver man på tangentbordet. */
+@media (any-pointer: coarse) {
+  .keypad { display: grid; }
+  .pin-hint { display: none; }
+}
+.pin-dialog .pinpad { margin: 18px 0 4px; }
+
 /* Appen */
 .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 24px; background: var(--surface); border-bottom: 1px solid var(--line); }
 .brand { display: flex; align-items: center; gap: 12px; }

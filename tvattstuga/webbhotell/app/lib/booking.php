@@ -27,7 +27,11 @@ function tvatt_booking_api(string $root, array $siteConfig, array $entry, string
     // Öppna anrop
     if ($method === 'GET' && $route === '/config') {
         $out = tvatt_rules($config) + ['name' => $config['name'], 'company' => $config['company']];
-        $out['apartments'] = array_map(function ($a) { return ['id' => $a['id'], 'name' => $a['name']]; }, $config['apartments']);
+        $users = $store->data['users'];
+        $out['apartments'] = array_map(function ($a) use ($users) {
+            $user = $users[$a['id']] ?? null;
+            return ['id' => $a['id'], 'name' => $a['name'], 'pin' => tvatt_has_pin($user) && !tvatt_pin_locked($user)];
+        }, $config['apartments']);
         return tvatt_send(200, $out);
     }
     if ($method === 'POST' && $route === '/login') {
@@ -35,10 +39,23 @@ function tvatt_booking_api(string $root, array $siteConfig, array $entry, string
         $body = tvatt_read_json();
         $id = isset($body['apartmentId']) ? (string) $body['apartmentId'] : '';
         $user = isset($names[$id]) ? ($store->data['users'][$id] ?? null) : null;
-        if (!tvatt_verify_password($body['password'] ?? null, $user)) {
+        if (isset($body['pin'])) {
+            // Pinkoden spärras efter några fel i rad, så att den inte kan gissas.
+            if (!tvatt_has_pin($user)) return tvatt_fail(409, 'Lägenheten har ingen pinkod. Logga in med lösenordet.');
+            if (tvatt_pin_locked($user)) return tvatt_fail(423, 'Pinkoden är spärrad efter för många felaktiga försök. Logga in med lösenordet.');
+            if (!tvatt_valid_pin($body['pin']) || !password_verify($body['pin'], $user['pin'])) {
+                $failures = (int) ($user['pinFailures'] ?? 0) + 1;
+                $store->data['users'][$id]['pinFailures'] = $failures;
+                tvatt_login_blocked($store, $ts, true);
+                $left = TVATT_PIN_MAX_FAILURES - $failures;
+                if ($left <= 0) return tvatt_fail(423, 'Fel pinkod. Pinkoden är nu spärrad, logga in med lösenordet.');
+                return tvatt_fail(401, 'Fel pinkod. ' . $left . ' försök kvar.');
+            }
+        } elseif (!tvatt_verify_password($body['password'] ?? null, $user)) {
             tvatt_login_blocked($store, $ts, true);
             return tvatt_fail(401, 'Fel lägenhet eller lösenord.');
         }
+        unset($store->data['users'][$id]['pinFailures']);
         tvatt_login_blocked($store, $ts, false);
         $cookie(tvatt_session_token($store->data['secret'], $id, (int) ($user['version'] ?? 0), $ts), $ts + TVATT_SESSION_DAYS * 86400);
         return tvatt_send(200, ['apartmentId' => $id]);
@@ -61,13 +78,29 @@ function tvatt_booking_api(string $root, array $siteConfig, array $entry, string
         return tvatt_send_ics($ics, null);
     }
 
-    $known = ['/me', '/password', '/bookings', '/reminders', '/reminders/new-link', '/board'];
+    $known = ['/me', '/password', '/pin', '/bookings', '/reminders', '/reminders/new-link', '/board'];
     $dynamic = preg_match('#^/(bookings/[\w-]+(\.ics|/note)?|board/[\w-]+)$#', $route);
     if (!in_array($route, $known, true) && !$dynamic) return tvatt_fail(404, 'Hittades inte.');
     if (!$me) return tvatt_fail(401, 'Du är inte inloggad.');
 
     if ($method === 'GET' && $route === '/me') {
-        return tvatt_send(200, ['apartmentId' => $me, 'apartmentName' => $names[$me]]);
+        return tvatt_send(200, ['apartmentId' => $me, 'apartmentName' => $names[$me], 'hasPin' => tvatt_has_pin($store->data['users'][$me])]);
+    }
+
+    // Välj, byt eller ta bort pinkoden. Gäller lägenhetens alla enheter.
+    if ($route === '/pin') {
+        if ($method === 'POST') {
+            $pin = tvatt_read_json()['pin'] ?? null;
+            if (!tvatt_valid_pin($pin)) return tvatt_fail(400, 'Pinkoden ska vara fyra siffror.');
+            $store->data['users'][$me]['pin'] = password_hash($pin, PASSWORD_DEFAULT);
+        } elseif ($method === 'DELETE') {
+            unset($store->data['users'][$me]['pin']);
+        } else {
+            return tvatt_fail(405, 'Metoden stöds inte.');
+        }
+        unset($store->data['users'][$me]['pinFailures']);
+        $store->save();
+        return tvatt_send(200, ['hasPin' => $method === 'POST']);
     }
 
     if ($method === 'POST' && $route === '/password') {
@@ -77,7 +110,7 @@ function tvatt_booking_api(string $root, array $siteConfig, array $entry, string
         $new = $body['newPassword'] ?? null;
         if (!is_string($new) || mb_strlen($new) < 6) return tvatt_fail(400, 'Det nya lösenordet måste vara minst 6 tecken.');
         $version = (int) ($user['version'] ?? 0) + 1;
-        $store->data['users'][$me] = tvatt_new_user($new, $version);
+        $store->data['users'][$me] = tvatt_new_user($new, $version) + array_intersect_key($user, ['pin' => 1]);
         $store->save();
         $cookie(tvatt_session_token($store->data['secret'], $me, $version, $ts), $ts + TVATT_SESSION_DAYS * 86400);
         return tvatt_send(200, ['ok' => true]);

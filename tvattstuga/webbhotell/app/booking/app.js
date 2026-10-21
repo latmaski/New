@@ -20,6 +20,50 @@ function describe(b) {
   return { day, time: `${pad(b.startHour)}:00–${pad(b.endHour)}:00` };
 }
 
+// ---------- Pinkod ----------
+// Fyra prickar och en knappsats. På datorn döljs knappsatsen och man skriver
+// siffrorna med tangentbordet (se keydown längre ner).
+function createPinPad(root, onComplete) {
+  root.className = 'pinpad';
+  const keys = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => `<button type="button" data-key="${n}">${n}</button>`).join('');
+  root.innerHTML = '<div class="pin-dots" aria-hidden="true"><i></i><i></i><i></i><i></i></div>'
+    + `<div class="keypad">${keys}<span></span><button type="button" data-key="0">0</button>`
+    + '<button type="button" class="key-back" data-key="back" aria-label="Radera">⌫</button></div>'
+    + '<p class="pin-hint">Skriv fyra siffror med tangentbordet</p>';
+  const dots = root.querySelectorAll('.pin-dots i');
+  let value = '';
+  let busy = false;
+  const show = () => dots.forEach((d, i) => d.classList.toggle('on', i < value.length));
+  const press = async (key) => {
+    if (busy) return;
+    if (key === 'back') value = value.slice(0, -1);
+    else if (value.length < 4) value += key;
+    show();
+    if (value.length < 4) return;
+    busy = true;
+    try { await onComplete(value); } finally { busy = false; }
+  };
+  root.querySelector('.keypad').addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (btn) press(btn.dataset.key);
+  });
+  return {
+    key(e) {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (/^[0-9]$/.test(e.key)) press(e.key);
+      else if (e.key === 'Backspace') press('back');
+      else return;
+      e.preventDefault();
+    },
+    clear() { value = ''; show(); },
+    shake() {
+      root.classList.remove('shake');
+      void root.offsetWidth; // starta om animationen
+      root.classList.add('shake');
+    },
+  };
+}
+
 // ---------- Inloggning ----------
 function renderAptPicker() {
   const last = localStorageGet('lastApartment');
@@ -36,16 +80,70 @@ function renderAptPicker() {
   }
 }
 
+const selectedApartment = () => {
+  const id = new FormData($('login-form')).get('apartment');
+  return state.config.apartments.find((a) => a.id === id) || null;
+};
+let loginMode = 'password';
+
+// Har lägenheten en pinkod frågas efter den, men man kan välja lösenordet i stället.
+function setLoginMode(mode) {
+  const apt = selectedApartment();
+  const hasPin = !!(apt && apt.pin);
+  loginMode = mode === 'pin' && hasPin ? 'pin' : 'password';
+  const pin = loginMode === 'pin';
+  $('login-pin').hidden = !pin;
+  $('login-pw').hidden = pin;
+  $('login-submit').hidden = pin;
+  $('login-switch').hidden = !hasPin;
+  $('login-switch').textContent = pin ? 'Logga in med lösenord i stället' : 'Logga in med pinkod';
+  if (apt) $('login-pin-label').textContent = `Pinkod för ${apt.name.replace(/^Lägenhet/, 'lägenhet')}`;
+  loginPad.clear();
+}
+
+const loginPad = createPinPad($('login-pinpad'), async (pin) => {
+  const apt = selectedApartment();
+  $('login-error').textContent = '';
+  try {
+    await api('api/login', { method: 'POST', body: { apartmentId: apt.id, pin } });
+    localStorageSet('lastApartment', apt.id);
+    await startApp();
+  } catch (err) {
+    loginPad.shake();
+    loginPad.clear();
+    $('login-error').textContent = err.message;
+    // Spärrad eller borttagen pinkod: då gäller lösenordet.
+    if (err.status === 423 || err.status === 409) {
+      apt.pin = false;
+      setLoginMode('password');
+    }
+  }
+});
+
 function showLogin() {
   state.me = null;
+  if ($('pin-dialog').open) $('pin-dialog').close();
   $('app').hidden = true;
   $('login').hidden = false;
   renderAptPicker();
   $('login-password').value = '';
+  $('login-error').textContent = '';
+  setLoginMode('pin');
 }
+
+$('apt-picker').addEventListener('change', () => {
+  $('login-error').textContent = '';
+  setLoginMode('pin');
+});
+$('login-switch').addEventListener('click', () => {
+  $('login-error').textContent = '';
+  setLoginMode(loginMode === 'pin' ? 'password' : 'pin');
+  if (loginMode === 'password') $('login-password').focus();
+});
 
 $('login-form').addEventListener('submit', async (e) => {
   e.preventDefault();
+  if (loginMode === 'pin') return;
   const apartmentId = new FormData(e.target).get('apartment');
   const password = $('login-password').value;
   $('login-error').textContent = '';
@@ -55,6 +153,8 @@ $('login-form').addEventListener('submit', async (e) => {
     await api('api/login', { method: 'POST', body: { apartmentId, password } });
     localStorageSet('lastApartment', apartmentId);
     await startApp();
+    // Första gången: erbjud en pinkod att logga in med i fortsättningen.
+    if (!state.me.hasPin) openPinDialog(true);
   } catch (err) {
     $('login-error').textContent = err.message;
   }
@@ -63,6 +163,71 @@ $('login-form').addEventListener('submit', async (e) => {
 $('btn-logout').addEventListener('click', async () => {
   await api('api/logout', { method: 'POST' }).catch(() => {});
   showLogin();
+});
+
+// ---------- Välj eller byt pinkod ----------
+let firstPin = null;
+
+function pinStep(first) {
+  firstPin = first;
+  $('pin-title').textContent = first ? 'Upprepa pinkoden' : state.me.hasPin ? 'Byt pinkod' : 'Välj en pinkod';
+  pinPad.clear();
+}
+
+function openPinDialog(offer) {
+  $('pin-text').textContent = offer
+    ? 'Nästa gång kan du logga in med fyra siffror i stället för lösenordet. Pinkoden gäller för lägenheten i alla dina enheter.'
+    : 'Välj fyra nya siffror. Pinkoden gäller för lägenheten i alla dina enheter, och lösenordet fungerar fortfarande.';
+  $('pin-cancel').textContent = offer ? 'Inte nu' : 'Avbryt';
+  $('pin-remove').hidden = !state.me.hasPin;
+  $('pin-error').textContent = '';
+  pinStep(null);
+  $('pin-dialog').showModal();
+}
+
+function setOwnPin(hasPin) {
+  state.me.hasPin = hasPin;
+  const apt = state.config.apartments.find((a) => a.id === state.me.apartmentId);
+  if (apt) apt.pin = hasPin;
+}
+
+const pinPad = createPinPad($('pin-pad'), async (pin) => {
+  $('pin-error').textContent = '';
+  if (firstPin === null) { pinStep(pin); return; }
+  if (pin !== firstPin) {
+    pinPad.shake();
+    $('pin-error').textContent = 'Pinkoderna var olika. Försök igen.';
+    pinStep(null);
+    return;
+  }
+  try {
+    await api('api/pin', { method: 'POST', body: { pin } });
+    setOwnPin(true);
+    $('pin-dialog').close();
+    toast('Pinkoden är sparad. Nästa gång loggar du in med den.');
+  } catch (err) {
+    $('pin-error').textContent = err.message;
+    pinStep(null);
+  }
+});
+
+$('btn-pin').addEventListener('click', () => openPinDialog(false));
+$('pin-cancel').addEventListener('click', () => $('pin-dialog').close());
+$('pin-remove').addEventListener('click', async () => {
+  try {
+    await api('api/pin', { method: 'DELETE' });
+    setOwnPin(false);
+    $('pin-dialog').close();
+    toast('Pinkoden är borttagen. Du loggar in med lösenordet.');
+  } catch (err) {
+    $('pin-error').textContent = err.message;
+  }
+});
+
+// Siffror från tangentbordet går till den knappsats som syns.
+document.addEventListener('keydown', (e) => {
+  if ($('pin-dialog').open) pinPad.key(e);
+  else if (!$('login').hidden && loginMode === 'pin' && !document.querySelector('dialog[open]')) loginPad.key(e);
 });
 
 // ---------- Byt lösenord ----------

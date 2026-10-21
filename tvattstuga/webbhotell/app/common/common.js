@@ -34,7 +34,7 @@ async function api(path, options = {}) {
     if (window.onUnauthorized) window.onUnauthorized();
     throw new Error(data.error || 'Du är inte inloggad.');
   }
-  if (!res.ok) throw new Error(data.error || 'Något gick fel.');
+  if (!res.ok) throw Object.assign(new Error(data.error || 'Något gick fel.'), { status: res.status });
   return data;
 }
 

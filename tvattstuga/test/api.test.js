@@ -18,7 +18,7 @@ test('fem inloggningar skapas och lösenord krävs', async (t) => {
   const ok = await c('POST', '/api/login', { apartmentId: '1', password: env.passwords['1'] });
   assert.equal(ok.status, 200);
   assert.match(ok.headers.get('set-cookie'), /HttpOnly/i);
-  assert.deepEqual((await c('GET', '/api/me')).body, { apartmentId: '1', apartmentName: 'Lägenhet 1' });
+  assert.deepEqual((await c('GET', '/api/me')).body, { apartmentId: '1', apartmentName: 'Lägenhet 1', hasPin: false });
   await c('POST', '/api/logout');
   assert.equal((await c('GET', '/api/me')).status, 401);
 });

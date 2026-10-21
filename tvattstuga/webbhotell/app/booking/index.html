@@ -23,12 +23,17 @@
         <legend>Välj din lägenhet</legend>
         <div id="apt-picker" class="apt-picker"></div>
       </fieldset>
-      <label class="field">
+      <label id="login-pw" class="field">
         <span>Lösenord</span>
         <input id="login-password" type="password" autocomplete="current-password" required>
       </label>
-      <p id="login-error" class="form-error" role="alert"></p>
-      <button class="btn primary wide" type="submit">Logga in</button>
+      <div id="login-pin" hidden>
+        <p id="login-pin-label" class="pin-label">Pinkod</p>
+        <div id="login-pinpad"></div>
+      </div>
+      <p id="login-error" class="form-error pin-error" role="alert"></p>
+      <button id="login-submit" class="btn primary wide" type="submit">Logga in</button>
+      <button id="login-switch" class="link-btn" type="button" hidden></button>
     </form>
   </div>
 </main>
@@ -44,6 +49,7 @@
     </div>
     <div class="who">
       <span id="me-name" class="me-pill"></span>
+      <button id="btn-pin" class="btn ghost small" type="button">Pinkod</button>
       <button id="btn-password" class="btn ghost small" type="button">Byt lösenord</button>
       <button id="btn-logout" class="btn ghost small" type="button">Logga ut</button>
     </div>
@@ -133,6 +139,17 @@
     <p class="muted small">Länken är personlig. Om någon annan har fått den kan du <button id="remind-new" class="link-inline" type="button">skapa en ny länk</button>. Då slutar den gamla att fungera.</p>
     <div class="dialog-actions"><button class="btn primary" value="ok">Klar</button></div>
   </form>
+</dialog>
+
+<dialog id="pin-dialog" class="dialog pin-dialog">
+  <h3 id="pin-title">Välj en pinkod</h3>
+  <p id="pin-text" class="muted small"></p>
+  <div id="pin-pad"></div>
+  <p id="pin-error" class="form-error pin-error" role="alert"></p>
+  <div class="dialog-actions">
+    <button id="pin-remove" class="btn ghost danger" type="button" hidden>Ta bort pinkoden</button>
+    <button id="pin-cancel" class="btn ghost" type="button">Inte nu</button>
+  </div>
 </dialog>
 
 <dialog id="password-dialog" class="dialog">

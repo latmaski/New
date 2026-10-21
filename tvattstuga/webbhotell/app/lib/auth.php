@@ -2,6 +2,8 @@
 defined('TVATT') || exit;
 
 const TVATT_SESSION_DAYS = 30;
+// Efter så många felaktiga pinkoder i rad måste lägenheten logga in med lösenordet.
+const TVATT_PIN_MAX_FAILURES = 5;
 
 function tvatt_generate_password(int $length = 10): string
 {
@@ -19,6 +21,21 @@ function tvatt_new_user(string $password, int $version): array
 function tvatt_verify_password($password, ?array $user): bool
 {
     return $user && is_string($password) && password_verify($password, $user['hash']);
+}
+
+function tvatt_valid_pin($pin): bool
+{
+    return is_string($pin) && preg_match('/^[0-9]{4}$/', $pin) === 1;
+}
+
+function tvatt_has_pin(?array $user): bool
+{
+    return $user !== null && !empty($user['pin']);
+}
+
+function tvatt_pin_locked(?array $user): bool
+{
+    return (int) ($user['pinFailures'] ?? 0) >= TVATT_PIN_MAX_FAILURES;
 }
 
 // Sessionen är en signerad cookie: lägenhet.utgång.version.signatur.
